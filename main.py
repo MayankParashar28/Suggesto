@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from modules.movie_recommender import MovieEngine
 from modules.collab_recommender import CollabEngine
 from modules.hybrid_recommender import HybridEngine
+from modules.suggesto_registry import SuggestoRegistry
 from typing import List, Dict, Any, Optional
 
 import json
@@ -43,11 +44,18 @@ async def update_metadata_cache(payload: CacheUpdate):
     save_metadata_cache()
     return {"status": "Cached"}
 
-# 1. Initialize Engines
-print("🚀 Initializing Recommendation Hub...")
+# 1. Register Engines
+print("🚀 Initializing Suggesto Hub (Universal Edition)...")
+registry = SuggestoRegistry()
+
 movie_engine = MovieEngine(data_path="processed/", model_path="models/")
 collab_engine = CollabEngine(data_path="processed/", model_path="models/")
 hybrid_engine = HybridEngine(movie_engine, collab_engine)
+
+registry.register("movies", hybrid_engine)
+# Placeholders for future expansion (Songs, Courses)
+registry.register("songs", None)
+registry.register("courses", None)
 
 
 # 2. TMDB Proxy (Secures API Key)
@@ -101,6 +109,34 @@ async def recommend_movies(movie_id: int, mode: str = Query("hybrid", pattern="^
             rec["cached"] = metadata_cache[tid]
             
     return {"recommendations": recommendations, "mode": mode, "genre": genre}
+@app.get("/api/v1/recommend/{content_type}/{item_id}")
+async def universal_recommend(
+    content_type: str, 
+    item_id: int, 
+    limit: int = 12, 
+    genre: Optional[str] = None
+):
+    """Unified endpoint for Movies, Songs, Courses, etc."""
+    engine = registry.get_engine(content_type)
+    if not engine:
+        raise HTTPException(status_code=404, detail=f"Category '{content_type}' is not yet active.")
+    
+    # Check if engine is initialized (handle placeholders)
+    if engine is None:
+        return {"recommendations": [], "status": "coming_soon"}
+
+    recommendations = engine.recommend(item_id, top_n=limit, genre=genre)
+    
+    if not recommendations:
+        raise HTTPException(status_code=404, detail="Item not found or no recommendations.")
+
+    # Enrich with metadata if needed
+    for rec in recommendations:
+        tid = str(rec.get("tmdbId"))
+        if tid in metadata_cache:
+            rec["cached"] = metadata_cache[tid]
+
+    return {"recommendations": recommendations, "category": content_type}
 
 # 3. Static Files & Root
 app.mount("/static", StaticFiles(directory="static"), name="static")

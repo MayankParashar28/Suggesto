@@ -132,12 +132,22 @@ class MovieEngine:
                     ),
                     "tmdbId": int(row["tmdbId"]),
                     "imdbId": int(row["imdbId"]),
-                    "similarity": round(float(sim_scores[i]), 4),
+                    "similarity": self._normalize_score(float(sim_scores[i])),
                     "mode": "content",
                 }
             )
 
         return results
+
+    def _normalize_score(self, score: float) -> float:
+        """
+        Maps technical cosine similarity (0.0 - 1.0) to a user-friendly 
+        'Confidence Percentage' (0.60 - 0.98).
+        """
+        if score <= 0: return 0.0
+        # Boost low but relevant scores into the 70s and 80s
+        normalized = 0.65 + (score * 0.7) 
+        return round(min(0.98, normalized), 4)
 
     # ── Internal helpers ────────────────────────────────────────────
 
