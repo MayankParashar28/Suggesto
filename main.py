@@ -9,6 +9,13 @@ from typing import List, Dict, Any, Optional
 
 import json
 from pydantic import BaseModel
+import httpx
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+TMDB_BASE_URL = os.getenv("TMDB_BASE_URL", "https://api.themoviedb.org/3")
 
 app = FastAPI(title="Discovery API", version="1.0.0")
 
@@ -42,7 +49,28 @@ movie_engine = MovieEngine(data_path="processed/", model_path="models/")
 collab_engine = CollabEngine(data_path="processed/", model_path="models/")
 hybrid_engine = HybridEngine(movie_engine, collab_engine)
 
-# 2. API Routes
+
+# 2. TMDB Proxy (Secures API Key)
+@app.get("/api/v1/tmdb/movie/{tmdb_id}")
+async def get_tmdb_movie(tmdb_id: int):
+    """Proxy request to TMDB to hide API key from frontend."""
+    if not TMDB_API_KEY:
+        raise HTTPException(status_code=500, detail="TMDB API key not configured.")
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{TMDB_BASE_URL}/movie/{tmdb_id}",
+                params={"api_key": TMDB_API_KEY}
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail="TMDB API error")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+# 3. API Routes
 @app.get("/api/v1/movies/search")
 async def search_movies(q: str = Query(..., min_length=2)):
     """Search for movies by part of the title."""
