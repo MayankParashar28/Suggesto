@@ -40,15 +40,19 @@ function switchTab(tab, el) {
     if (detailView) detailView.style.display = 'none';
     
     if (header) {
-        header.textContent = tab === 'movies' ? `Daily Discoveries` : `${tab.toUpperCase()} Notes`;
+        if (tab === 'movies') header.textContent = 'The Cinema Log';
+        else if (tab === 'songs') header.textContent = 'The Playlist Scribbles';
+        else if (tab === 'courses') header.textContent = 'The Study Notes';
     }
     
     if (tab === 'movies') {
         handleDiscover('Inception');
     } else {
+        const title = tab === 'songs' ? 'Melody Drafts' : 'Knowledge Sketch';
         grid.innerHTML = `
             <div style="padding: 40px; text-align: center; font-family: var(--font-header); font-size: 1.5rem;">
-                ${tab} section is currently being sketched...
+                <div style="font-size: 3rem; margin-bottom: 1rem;">✍️</div>
+                "${title}" section is currently being sketched...
             </div>`;
     }
 }
@@ -208,7 +212,7 @@ async function selectItem(item) {
         const res = await fetch(`/api/v1/recommend/movies/${item.movieId}?limit=10`);
         const data = await res.json();
         if (header) {
-            header.textContent = "You might also like these sketches:";
+            header.textContent = "Recommended Revisions (Related Sketches):";
         }
         renderItems(data.recommendations);
         

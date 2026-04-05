@@ -1,56 +1,58 @@
 import os
 import csv
-from typing import Dict, Optional
+from typing import Dict, Any, Optional
 
 class MappingService:
     """
-    High-performance ID mapping service for MovieLens IDs to TMDB/IMDB IDs.
-    Uses O(1) dictionary lookups via native CSV module (Vercel Optimized).
+    High-performance ID mapping service (Zero-Scipy).
+    Supports multiple categories (Movies, Music, Learning) by loading 
+    cross-reference CSVs into O(1) memory dictionaries.
     """
     def __init__(self, data_path: str = "processed/"):
         self.data_path = data_path
-        self.links_file = os.path.join(data_path, "links_processed.csv")
         
-        # O(1) Lookups
-        self.movie_to_tmdb: Dict[int, int] = {}
-        self.movie_to_imdb: Dict[int, int] = {}
-        self.tmdb_to_movie: Dict[int, int] = {}
+        # Structure: { category: { source_id: { target_key: target_id } } }
+        self.store: Dict[str, Dict[int, Dict[str, Any]]] = {
+            "movies": {},
+            "songs": {},
+            "courses": {}
+        }
         
-        self._load_mappings()
+        # Load initial movie mappings
+        self._load_category("movies", "links_processed.csv", source_key="movieId")
 
-    def _load_mappings(self):
-        print(f"  🔗 Loading ID Mappings from {self.links_file} (Native CSV)...")
-        if not os.path.exists(self.links_file):
-            print(f"  ⚠️  Mapping file not found: {self.links_file}")
+    def _load_category(self, category: str, filename: str, source_key: str):
+        path = os.path.join(self.data_path, filename)
+        if not os.path.exists(path):
             return
 
-        # Build fast dictionaries using native CSV module to save ~100MB (no pandas)
+        print(f"  🔗 Loading {category} mappings from {filename}...")
         try:
-            with open(self.links_file, mode='r', encoding='utf-8') as f:
+            with open(path, mode='r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     try:
-                        mid = int(row["movieId"])
-                        tid = int(row["tmdbId"]) if row["tmdbId"] and row["tmdbId"] != '-1' else -1
-                        iid = int(row["imdbId"]) if row["imdbId"] and row["imdbId"] != '-1' else -1
-                        
-                        self.movie_to_tmdb[mid] = tid
-                        self.movie_to_imdb[mid] = iid
-                        self.tmdb_to_movie[tid] = mid
+                        sid = int(row[source_key])
+                        # Store all other columns as potential mapping targets
+                        self.store[category][sid] = {
+                            k: (int(v) if v and v != '-1' else v) 
+                            for k, v in row.items() if k != source_key
+                        }
                     except (ValueError, KeyError):
                         continue
-            print(f"  ✅ Mapping Service ready — {len(self.movie_to_tmdb):,} IDs mapped.")
+            print(f"  ✅ {category.capitalize()} mappings ready — {len(self.store[category]):,} IDs.")
         except Exception as e:
-            print(f"  ❌ Failed to load mappings: {e}")
+            print(f"  ❌ Failed to load {category} mappings: {e}")
 
+    def get_id(self, category: str, source_id: int, target_key: str) -> Any:
+        """Generic lookup for any ID cross-reference."""
+        category_data = self.store.get(category, {})
+        item_data = category_data.get(source_id, {})
+        return item_data.get(target_key, -1)
+
+    # Legacy-compatible helpers for the MovieEngine
     def get_tmdb_id(self, movie_id: int) -> int:
-        """Translates MovieLens movieId to TMDB tmdbId instantly."""
-        return self.movie_to_tmdb.get(movie_id, -1)
+        return self.get_id("movies", movie_id, "tmdbId")
 
     def get_imdb_id(self, movie_id: int) -> int:
-        """Translates MovieLens movieId to IMDB imdbId instantly."""
-        return self.movie_to_imdb.get(movie_id, -1)
-
-    def get_movie_id(self, tmdb_id: int) -> int:
-        """Translates TMDB tmdbId back to MovieLens movieId instantly."""
-        return self.tmdb_to_movie.get(tmdb_id, -1)
+        return self.get_id("movies", movie_id, "imdbId")
