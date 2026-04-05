@@ -1,11 +1,11 @@
 import os
-import pandas as pd
+import csv
 from typing import Dict, Optional
 
 class MappingService:
     """
     High-performance ID mapping service for MovieLens IDs to TMDB/IMDB IDs.
-    Uses O(1) dictionary lookups instead of DataFrame joins.
+    Uses O(1) dictionary lookups via native CSV module (Vercel Optimized).
     """
     def __init__(self, data_path: str = "processed/"):
         self.data_path = data_path
@@ -19,24 +19,29 @@ class MappingService:
         self._load_mappings()
 
     def _load_mappings(self):
-        print(f"  🔗 Loading ID Mappings from {self.links_file}...")
+        print(f"  🔗 Loading ID Mappings from {self.links_file} (Native CSV)...")
         if not os.path.exists(self.links_file):
             print(f"  ⚠️  Mapping file not found: {self.links_file}")
             return
 
-        # Load only necessary columns with correct dtypes
-        df = pd.read_csv(
-            self.links_file,
-            usecols=["movieId", "imdbId", "tmdbId"],
-            dtype={"movieId": "int32", "imdbId": "int32", "tmdbId": "int32"}
-        )
-
-        # Build fast dictionaries
-        self.movie_to_tmdb = dict(zip(df["movieId"], df["tmdbId"]))
-        self.movie_to_imdb = dict(zip(df["movieId"], df["imdbId"]))
-        self.tmdb_to_movie = dict(zip(df["tmdbId"], df["movieId"]))
-        
-        print(f"  ✅ Mapping Service ready — {len(self.movie_to_tmdb):,} IDs mapped.")
+        # Build fast dictionaries using native CSV module to save ~100MB (no pandas)
+        try:
+            with open(self.links_file, mode='r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        mid = int(row["movieId"])
+                        tid = int(row["tmdbId"]) if row["tmdbId"] and row["tmdbId"] != '-1' else -1
+                        iid = int(row["imdbId"]) if row["imdbId"] and row["imdbId"] != '-1' else -1
+                        
+                        self.movie_to_tmdb[mid] = tid
+                        self.movie_to_imdb[mid] = iid
+                        self.tmdb_to_movie[tid] = mid
+                    except (ValueError, KeyError):
+                        continue
+            print(f"  ✅ Mapping Service ready — {len(self.movie_to_tmdb):,} IDs mapped.")
+        except Exception as e:
+            print(f"  ❌ Failed to load mappings: {e}")
 
     def get_tmdb_id(self, movie_id: int) -> int:
         """Translates MovieLens movieId to TMDB tmdbId instantly."""
