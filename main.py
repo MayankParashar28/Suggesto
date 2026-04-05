@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from modules.movie_recommender import MovieEngine
+from modules.music_recommender import MusicEngine
 from modules.collab_recommender import CollabEngine
 from modules.hybrid_recommender import HybridEngine
 from modules.suggesto_registry import SuggestoRegistry
@@ -41,11 +42,13 @@ MODEL_PATH = "models/"
 
 mapping_service = MappingService(data_path=DATA_PATH)
 movie_engine = MovieEngine(data_path=DATA_PATH, model_path=MODEL_PATH, mapping_service=mapping_service)
+music_engine = MusicEngine(data_path=DATA_PATH, model_path=MODEL_PATH)
+
 collab_engine = CollabEngine(data_path=DATA_PATH, model_path=MODEL_PATH)
 hybrid_engine = HybridEngine(movie_engine, collab_engine)
 
 registry.register("movies", hybrid_engine)
-registry.register("songs", None)
+registry.register("songs", music_engine)
 registry.register("courses", None)
 
 tmdb_service = TMDBService()
@@ -94,6 +97,12 @@ async def search_movies(q: str = Query(..., min_length=2)):
     results = movie_engine.search(q, limit=12)
     return {"results": tmdb_service.enrich_recommendations(results)}
 
+@app.get("/api/v1/songs/search")
+async def search_songs(q: str = Query(..., min_length=2)):
+    """Search for songs via the Zero-Scipy MusicEngine."""
+    results = music_engine.search(q, limit=24)
+    return {"results": results}
+
 @app.get("/api/v1/movies/recommend/{movie_id}")
 async def recommend_movies(
     movie_id: int, 
@@ -121,7 +130,7 @@ async def recommend_movies(
 @app.get("/api/v1/recommend/{content_type}/{item_id}")
 async def universal_recommend(
     content_type: str, 
-    item_id: int, 
+    item_id: str, 
     limit: int = 12, 
     genre: Optional[str] = None
 ):
@@ -133,11 +142,23 @@ async def universal_recommend(
     if engine is None: # Placeholder case
         return {"recommendations": [], "status": "coming_soon"}
 
+    # Normalize item_id type (movies expect int, songs expect str)
+    try:
+        if content_type == "movies":
+            item_id = int(item_id)
+    except ValueError:
+         raise HTTPException(status_code=400, detail=f"Numeric ID required for {content_type}")
+
     recs = engine.recommend(item_id, top_n=limit, genre=genre)
     if not recs:
         raise HTTPException(status_code=404, detail="Item not found.")
 
-    enriched = tmdb_service.enrich_recommendations(recs)
+    # Only enrich with TMDB if it's a movie
+    if content_type == "movies":
+        enriched = tmdb_service.enrich_recommendations(recs)
+    else:
+        enriched = recs # Return as is for songs
+    
     return {"recommendations": enriched, "category": content_type}
 
 @app.post("/api/v1/metadata/cache", include_in_schema=False)
