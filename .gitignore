@@ -1,14 +1,21 @@
-# Large datasets
+# Large datasets (MUST IGNORE for Vercel 500MB limit)
 ml-32m/
 processed/ratings_filtered.csv
 processed/tags_processed.csv
 processed/user_stats.csv
 processed/movie_stats.csv
 
-# Allow only essential runtime files
+# Allow necessary data & models
 !processed/links_processed.csv
 !processed/movies_processed.csv
 !models/
+!models/tfidf_matrix.npz
+
+# Allow configuration (MUST TRACK for Vercel)
+!requirements.txt
+!vercel.json
+!.vercelignore
+!pyproject.toml
 
 # Cache & system files
 __pycache__/
@@ -19,13 +26,10 @@ __pycache__/
 .python-version
 .vscode/
 
-# Build assets
+# Build scratch files
 *uv.lock
 README.md
 *.ipynb
 *.md
 Dockerfile
 docker-compose.yml
-requirements.txt
-vercel.json
-.vercelignore

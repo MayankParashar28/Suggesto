@@ -1,0 +1,24 @@
+# Vercel Deployment Exclusions
+# 1.3GB Dataset (Crucial to ignore for Vercel 50MB limit)
+processed/ratings_filtered.csv
+
+# Standard Exclusions
+.venv
+.git
+.DS_Store
+__pycache__
+*.ipynb
+ml-32m/
+train_collab.py
+uv.lock
+.python-version
+.vscode/
+
+# Legacy and Local Configs
+.env
+README.md
+implementation_plan.md
+task.md
+performance_walkthrough.md
+mapping_walkthrough.md
+final_walkthrough.md
