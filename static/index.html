@@ -3,367 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Suggesto — Discover</title>
+    <title>Suggesto — Discover Your Next Movie Sketch</title>
     
-    <!-- Minimalist Typography -->
+    <!-- External Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     
-    <style>
-        /* ── Minimalist Tokens ────────────────────────────── */
-        :root {
-            --bg: #000;
-            --surface: #0a0a0d;
-            --accent: #3b82f6; 
-            --accent-glow: rgba(59, 130, 246, 0.2);
-            
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --text-sub: #475569;
-            
-            --border: rgba(255, 255, 255, 0.04);
-            --radius: 6px;
-            
-            --font-ui: 'Inter', -apple-system, system-ui, sans-serif;
-            --transition: all 0.3s cubic-bezier(0.2, 0, 0.2, 1);
-        }
-
-        /* ── Reset & Base ──────────────────────────────────── */
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: var(--bg);
-            color: var(--text-main);
-            font-family: var(--font-ui);
-            min-height: 100vh;
-            -webkit-font-smoothing: antialiased;
-            overflow-x: hidden;
-        }
-
-        /* ── Simple Top Navigation ────────────────────────── */
-        nav {
-            padding: 24px 60px;
-            display: flex; align-items: center; gap: 40px;
-            position: sticky; top: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px);
-            z-index: 100; border-bottom: 1px solid var(--border);
-        }
-        .logo { 
-            font-size: 1.1rem; font-weight: 800; letter-spacing: -0.04em; 
-            cursor: pointer; transition: var(--transition); flex-shrink: 0;
-        }
-        .logo:hover { opacity: 0.8; }
-        
-        /* ── Navbar Search ── */
-        .nav-search { flex: 1; max-width: 500px; margin: 0 auto; }
-        .search-box {
-            display: flex; align-items: center; gap: 12px;
-            background: var(--surface); border: 1px solid var(--border);
-            padding: 8px 18px; border-radius: 24px;
-            transition: var(--transition); position: relative;
-        }
-        .search-box:focus-within { border-color: var(--accent); background: #000; box-shadow: 0 0 20px var(--accent-glow); }
-        .search-box::after {
-            content: ''; position: absolute; bottom: -1px; left: 20px; right: 20px; height: 1px;
-            background: var(--accent); transition: transform 0.4s ease; transform: scaleX(0);
-        }
-        .search-box.loading::after { transform: scaleX(1); animation: pulse 1.5s infinite linear; }
-        
-        .search-box input {
-            background: transparent; border: none; outline: none;
-            color: var(--text-main); font-size: 0.9rem; font-weight: 400;
-            width: 100%; font-family: var(--font-ui);
-        }
-        .search-box input::placeholder { color: var(--text-sub); }
-
-        .nav-links { display: flex; gap: 32px; flex-shrink: 0; }
-        .nav-link { 
-            font-size: 0.8rem; font-weight: 600; color: var(--text-dim);
-            cursor: pointer; transition: var(--transition);
-            text-transform: uppercase; letter-spacing: 0.05em;
-        }
-        .nav-link:hover, .nav-link.active { color: var(--text-main); }
-
-
-        /* ── Main Canvas ───────────────────────────────────── */
-        main { max-width: 1400px; margin: 0 auto; padding: 40px 60px 100px 60px; }
-        .grid-header { margin-bottom: 32px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-sub); }
-        .discovery-grid {
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 48px;
-        }
-
-        /* ── Minimalist Card ───────────────────────────────── */
-        .card { 
-            cursor: pointer; transition: transform 0.1s ease-out, opacity 0.6s forwards; position: relative; 
-            opacity: 0; transform: translateY(20px);
-            animation: cardEntrance 0.6s forwards cubic-bezier(0.2, 0, 0.2, 1);
-            perspective: 1000px; /* Enable 3D */
-            transform-style: preserve-3d;
-        }
-        @keyframes cardEntrance { to { opacity: 1; transform: translateY(0); } }
-        
-        .card:hover .card-img { border-color: var(--accent); box-shadow: 0 15px 45px rgba(0,0,0,0.6), 0 0 25px var(--accent-glow); }
-        
-        .card-img { 
-            aspect-ratio: 2/3; background: var(--surface); border-radius: var(--radius);
-            overflow: hidden; margin-bottom: 14px; position: relative;
-            border: 1px solid var(--border); transition: var(--transition);
-            transform: translateZ(20px); /* 3D Depth */
-        }
-        .card-img img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.5s ease; border-radius: inherit; }
-        .card-img img.loaded { opacity: 1; }
-        
-        /* ── Gloss Shine Layer ── */
-        .card-gloss {
-            position: absolute; inset: 0; pointer-events: none;
-            background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,255,255,0.08), transparent 80%);
-            opacity: 0; transition: opacity 0.3s ease; z-index: 5;
-        }
-        .card:hover .card-gloss { opacity: 1; }
-        
-        /* ── Indicators ── */
-        .match-label {
-            font-size: 0.65rem; font-weight: 800; color: var(--accent);
-            text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;
-            display: flex; align-items: center; gap: 6px;
-        }
-        .match-label::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
-
-        .card-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        .card-meta-line { 
-            display: flex; align-items: center; gap: 8px; 
-            font-size: 0.75rem; color: var(--text-dim); font-weight: 500;
-        }
-        .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-sub); }
-        .rating { color: #fbbf24; font-weight: 700; display: flex; align-items: center; gap: 3px; }
-
-        /* ── Subtle Detail Context ── */
-        .detail-view {
-            margin-bottom: 80px; display: none;
-            animation: fadeIn 0.4s ease-out;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .detail-flex { display: flex; gap: 60px; align-items: start; perspective: 2000px; }
-        .detail-img { 
-            width: 320px; border-radius: var(--radius); overflow: hidden; flex-shrink: 0; 
-            border: 1px solid var(--border); transition: transform 0.5s cubic-bezier(0.2, 0, 0.2, 1);
-            transform: rotateY(-10deg) rotateX(5deg);
-        }
-        .detail-img:hover { transform: rotateY(0deg) rotateX(0deg) scale(1.02); }
-        .detail-img img { width: 100%; display: block; }
-        .detail-content { max-width: 800px; padding-top: 20px; }
-        .detail-tagline { font-size: 0.9rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 12px; }
-        .detail-title { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 16px; line-height: 1; }
-        .detail-meta { display: flex; gap: 20px; margin-bottom: 24px; font-size: 0.9rem; color: var(--text-dim); font-weight: 600; }
-        .detail-desc { font-size: 1.15rem; line-height: 1.7; color: #ccc; margin-bottom: 32px; }
-
-        /* ── Loading Skeleton ── */
-        .skeleton {
-            background: linear-gradient(90deg, #0a0a0a 25%, #151515 50%, #0a0a0a 75%);
-            background-size: 200% 100%; animation: shimmer 1.5s infinite;
-        }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-        /* ── Scroll ── */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #222; }
-
-    </style>
+    <!-- Hand-Drawn Styles -->
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
-    <nav>
-        <div class="logo" onclick="location.reload()">SUGGESTO</div>
+    <nav aria-label="Main Navigation">
+        <div class="logo" role="button" onclick="location.reload()" aria-label="Suggesto Logo">SUGGESTO</div>
         <div class="nav-search">
             <div class="search-box">
-                <input type="text" id="query-input" placeholder="Search movies, music..." autocomplete="off">
+                <i data-lucide="search" aria-hidden="true" style="width: 20px;"></i>
+                <input type="text" id="query-input" placeholder="Search for movies to sketch..." autocomplete="off">
             </div>
         </div>
         <div class="nav-links">
-            <div class="nav-link active" onclick="switchTab('movies', this)">Movies</div>
-            <div class="nav-link" onclick="switchTab('songs', this)">Music</div>
-            <div class="nav-link" onclick="switchTab('courses', this)">Learning</div>
+            <button class="nav-link active" onclick="switchTab('movies', this)">Movies</button>
+            <button class="nav-link" onclick="switchTab('songs', this)">Music</button>
+            <button class="nav-link" onclick="switchTab('courses', this)">Learning</button>
         </div>
     </nav>
 
-    <main>
-
-        <!-- Detail View (Initially hidden) -->
-        <div class="detail-view" id="detail-view">
+    <main id="main-content">
+        <!-- Detail View (The Post-it) -->
+        <section id="detail-view" class="detail-view" aria-labelledby="det-title">
             <div class="detail-flex">
-                <div class="detail-img"><img src="" id="det-img" alt=""></div>
-                <div class="detail-content">
-                    <div class="detail-tagline" id="det-tagline"></div>
+                <header class="detail-img">
+                    <img src="" id="det-img" alt="Movie Poster">
+                </header>
+                <article class="detail-content">
+                    <p class="detail-tagline" id="det-tagline"></p>
                     <h1 class="detail-title" id="det-title"></h1>
                     <div class="detail-meta" id="det-meta"></div>
                     <p class="detail-desc" id="det-desc"></p>
-                </div>
+                </article>
             </div>
-        </div>
+        </section>
+
+        <h2 class="grid-header" id="grid-header">Daily Discoveries</h2>
 
         <!-- Content Grid -->
-        <div id="grid-container">
+        <section id="grid-container" aria-live="polite">
             <div class="discovery-grid" id="discovery-results">
-                <!-- Cards appear here -->
+                <!-- Cards appear here dynamically -->
             </div>
-        </div>
+        </section>
     </main>
 
-    <script>
-        let currentTab = 'movies';
-        const TMDB_POSTER = 'https://image.tmdb.org/t/p/w500';
-        const cache = {};
-
-        const input = document.getElementById('query-input');
-        const grid = document.getElementById('discovery-results');
-        const header = document.getElementById('grid-header');
-        const detailView = document.getElementById('detail-view');
-
-        // Init
-        // window.onload = () => handleDiscover('Inception');
-
-        input.addEventListener('keydown', (e) => {
-            if(e.key === 'Enter') handleDiscover(input.value.trim());
-        });
-
-        function switchTab(tab, el) {
-            currentTab = tab;
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            el.classList.add('active');
-            detailView.style.display = 'none';
-            header.textContent = tab === 'movies' ? `Popular Discoveries` : `${tab.toUpperCase()} coming soon`;
-            
-            if(tab === 'movies') handleDiscover('Inception');
-            else grid.innerHTML = '';
-        }
-
-        async function handleDiscover(q) {
-            if(q.length < 2 || currentTab !== 'movies') return;
-            document.querySelector('.search-box').classList.add('loading');
-            try {
-                const res = await fetch(`/api/v1/movies/search?q=${encodeURIComponent(q)}`);
-                const data = await res.json();
-                renderItems(data.results || []);
-            } catch (err) { console.error(err); }
-            finally { document.querySelector('.search-box').classList.remove('loading'); }
-        }
-
-        function renderItems(items) {
-            grid.innerHTML = '';
-            items.forEach((item, i) => {
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.style.animationDelay = `${i * 0.05}s`;
-                card.onclick = () => selectItem(item);
-                
-                // 3D Tilt Logic
-                card.addEventListener('mousemove', (e) => {
-                    const rect = card.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    const centerX = rect.width / 2;
-                    const centerY = rect.height / 2;
-                    const rotateX = (y - centerY) / 8;
-                    const rotateY = (centerX - x) / 8;
-                    
-                    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-                    card.style.setProperty('--x', `${(x / rect.width) * 100}%`);
-                    card.style.setProperty('--y', `${(y / rect.height) * 100}%`);
-                });
-                
-                card.addEventListener('mouseleave', () => {
-                    card.style.transform = `perspective(1000px) rotateX(0) rotateY(0)`;
-                });
-                
-                const matchPct = item.similarity ? `${Math.round(item.similarity * 100)}% Match` : '';
-
-                card.innerHTML = `
-                    <div class="card-img">
-                        <div class="card-gloss"></div>
-                        <img src="" id="img-${item.tmdbId}" class="skeleton">
-                    </div>
-                    <div class="match-label"><span>${matchPct}</span></div>
-                    <div class="card-title">${item.title}</div>
-                    <div class="card-meta-line">
-                        <span class="rating" id="rate-${item.tmdbId}"></span>
-                        <div class="dot"></div>
-                        <span>${item.releaseYear || ''}</span>
-                        <div class="dot"></div>
-                        <span id="genre-${item.tmdbId}"></span>
-                    </div>
-                `;
-
-                grid.appendChild(card);
-                fetchMeta(item.tmdbId, card);
-            });
-        }
-
-        async function fetchMeta(tid, cardEl) {
-            if(!tid || tid <= 0) return;
-            if(cache[tid]) { updateCard(tid, cardEl, cache[tid]); return; }
-            try {
-                const res = await fetch(`/api/v1/tmdb/movie/${tid}`);
-                const data = await res.json();
-                cache[tid] = data;
-                updateCard(tid, cardEl, data);
-            } catch {}
-        }
-
-        function updateCard(tid, cardEl, data) {
-            const img = cardEl.querySelector(`#img-${tid}`);
-            img.src = data.poster_path ? TMDB_POSTER + data.poster_path : '';
-            img.onload = () => img.classList.add('loaded');
-            img.classList.remove('skeleton');
-
-            const rate = cardEl.querySelector(`#rate-${tid}`);
-            if(rate) rate.innerHTML = `★ ${data.vote_average.toFixed(1)}`;
-            
-            const genre = cardEl.querySelector(`#genre-${tid}`);
-            if(genre && data.genres) {
-                genre.textContent = data.genres.slice(0, 1).map(g => g.name).join(', ');
-            }
-        }
-
-        async function selectItem(item) {
-            detailView.style.display = 'block';
-            document.getElementById('det-title').textContent = item.title;
-            document.getElementById('det-desc').textContent = "...";
-            document.getElementById('det-tagline').textContent = "";
-            document.getElementById('det-meta').innerHTML = "";
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-
-            const meta = cache[item.tmdbId] || await (await fetch(`/api/v1/tmdb/movie/${item.tmdbId}`)).json();
-            cache[item.tmdbId] = meta;
-            
-            document.getElementById('det-tagline').textContent = meta.tagline;
-            document.getElementById('det-desc').textContent = meta.overview;
-            document.getElementById('det-img').src = meta.poster_path ? TMDB_POSTER + meta.poster_path : '';
-            
-            const genres = meta.genres.map(g => g.name).join(' • ');
-            const year = meta.release_date ? meta.release_date.split('-')[0] : '';
-            const runtime = meta.runtime ? `${meta.runtime} min` : '';
-            document.getElementById('det-meta').innerHTML = `
-                <span>${year}</span>
-                <div class="dot"></div>
-                <span>${genres}</span>
-                <div class="dot"></div>
-                <span>${runtime}</span>
-                <div class="dot"></div>
-                <span class="rating">★ ${meta.vote_average.toFixed(1)}</span>
-            `;
-
-            // Recs
-            try {
-                const res = await fetch(`/api/v1/recommend/movies/${item.movieId}?limit=10`);
-                const data = await res.json();
-                header.textContent = "Discover Similar";
-                renderItems(data.recommendations);
-            } catch (err) { console.error(err); }
-        }
-    </script>
+    <!-- Application Logic -->
+    <script src="/static/js/app.js"></script>
 </body>
 </html>

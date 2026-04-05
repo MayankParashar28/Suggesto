@@ -11,18 +11,19 @@ Performance:
 """
 
 import os
-import ast
 import pickle
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from modules.utils import parse_list_field, format_movie_response
 
 
 class MovieEngine:
     """Content-based recommendation engine using TF-IDF + Cosine Similarity."""
 
-    def __init__(self, data_path: str = "processed/", model_path: str = "models/"):
+    def __init__(self, data_path: str = "processed/", model_path: str = "models/", mapping_service=None):
         print("  📦 Loading Content-Based Engine...")
+        self.mapping_service = mapping_service
 
         # ── 1. Load movie metadata ──────────────────────────────────
         movies_df = pd.read_csv(
@@ -30,18 +31,19 @@ class MovieEngine:
             dtype={"movieId": "int32"},
         )
         # Genres are stored as string repr of lists — parse them back
-        movies_df["genres"] = movies_df["genres"].apply(self._parse_list_field)
+        movies_df["genres"] = movies_df["genres"].apply(parse_list_field)
         movies_df["title_norm"] = movies_df["title"].str.lower().str.strip()
 
-        # ── 2. Load links (movieId → tmdbId / imdbId) ──────────────
-        links_df = pd.read_csv(
-            os.path.join(data_path, "links_processed.csv"),
-            dtype={"movieId": "int32", "imdbId": "int32", "tmdbId": "int32"},
-        )
-        # Merge tmdbId + imdbId into movies
-        movies_df = movies_df.merge(links_df, on="movieId", how="left")
-        movies_df["tmdbId"] = movies_df["tmdbId"].fillna(-1).astype("int32")
-        movies_df["imdbId"] = movies_df["imdbId"].fillna(-1).astype("int32")
+        # If no mapping service provided, load internal links (legacy fallback)
+        if not self.mapping_service:
+             links_df = pd.read_csv(
+                 os.path.join(data_path, "links_processed.csv"),
+                 dtype={"movieId": "int32", "imdbId": "int32", "tmdbId": "int32"},
+             )
+             # Merge tmdbId + imdbId into movies
+             movies_df = movies_df.merge(links_df, on="movieId", how="left")
+             movies_df["tmdbId"] = movies_df["tmdbId"].fillna(-1).astype("int32")
+             movies_df["imdbId"] = movies_df["imdbId"].fillna(-1).astype("int32")
 
         self.movies = movies_df
 
@@ -75,18 +77,7 @@ class MovieEngine:
         hits = self.movies[mask].head(limit)
 
         return [
-            {
-                "movieId": int(row["movieId"]),
-                "title": row["title"],
-                "genres": row["genres"],
-                "releaseYear": (
-                    int(row["release_year"])
-                    if pd.notna(row["release_year"])
-                    else None
-                ),
-                "tmdbId": int(row["tmdbId"]),
-                "imdbId": int(row["imdbId"]),
-            }
+            self._format_with_ids(row)
             for _, row in hits.iterrows()
         ]
 
@@ -116,28 +107,35 @@ class MovieEngine:
         # Remove self-match
         top_indices = top_indices[top_indices != idx][:top_n]
 
-        # ── Build result dicts ──────────────────────────────────────
         results = []
         for i in top_indices:
             row = self.movies.iloc[i]
             results.append(
-                {
-                    "movieId": int(row["movieId"]),
-                    "title": row["title"],
-                    "genres": row["genres"],
-                    "releaseYear": (
-                        int(row["release_year"])
-                        if pd.notna(row["release_year"])
-                        else None
-                    ),
-                    "tmdbId": int(row["tmdbId"]),
-                    "imdbId": int(row["imdbId"]),
-                    "similarity": self._normalize_score(float(sim_scores[i])),
-                    "mode": "content",
-                }
+                self._format_with_ids(
+                    row, 
+                    score=self._normalize_score(float(sim_scores[i])), 
+                    mode="content"
+                )
             )
 
         return results
+
+    def _format_with_ids(self, row, score=None, mode="content"):
+        """Helper to inject IDs from the MappingService into the response."""
+        movieId = int(row["movieId"])
+        if self.mapping_service:
+             tmdbId = self.mapping_service.get_tmdb_id(movieId)
+             imdbId = self.mapping_service.get_imdb_id(movieId)
+        else:
+             tmdbId = int(row.get("tmdbId", -1))
+             imdbId = int(row.get("imdbId", -1))
+
+        # Re-use the existing physical formatter
+        return format_movie_response(
+             {**row.to_dict(), "tmdbId": tmdbId, "imdbId": imdbId},
+             score=score,
+             mode=mode
+        )
 
     def _normalize_score(self, score: float) -> float:
         """
@@ -148,18 +146,3 @@ class MovieEngine:
         # Boost low but relevant scores into the 70s and 80s
         normalized = 0.65 + (score * 0.7) 
         return round(min(0.98, normalized), 4)
-
-    # ── Internal helpers ────────────────────────────────────────────
-
-    @staticmethod
-    def _parse_list_field(val):
-        """Safely parse stringified Python lists from CSV back to real lists."""
-        if isinstance(val, list):
-            return val
-        if not isinstance(val, str) or val in ("[]", "(no genres listed)"):
-            return []
-        try:
-            parsed = ast.literal_eval(val)
-            return parsed if isinstance(parsed, list) else []
-        except (ValueError, SyntaxError):
-            return [g.strip() for g in val.split("|") if g.strip()]

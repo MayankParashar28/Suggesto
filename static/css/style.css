@@ -1,0 +1,229 @@
+/* ── Hand-Drawn Tokens ────────────────────────────── */
+:root {
+    --bg: #fdfbf7;        /* Warm Paper */
+    --foreground: #2d2d2d; /* Soft Pencil Black */
+    --muted: #e5e0d8;     /* Old Paper */
+    --accent: #ff4d4d;    /* Red Correction Marker */
+    --secondary: #2d5da1; /* Blue Ballpoint Pen */
+    --paper-white: #ffffff;
+    --post-it-yellow: #fff9c4;
+    
+    --border-width: 3px;
+    --shadow-hard: 4px 4px 0px 0px var(--foreground);
+    --shadow-hard-lg: 8px 8px 0px 0px var(--foreground);
+    --shadow-hard-hover: 2px 2px 0px 0px var(--foreground);
+    
+    --font-header: 'Kalam', cursive;
+    --font-body: 'Patrick Hand', cursive;
+    
+    --wobbly: 255px 15px 225px 15px / 15px 225px 15px 255px;
+    --wobbly-md: 30px 10px 40px 10px / 10px 40px 10px 30px;
+    
+    --transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ── Reset & Base ──────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    background-color: var(--bg);
+    background-image: radial-gradient(var(--muted) 1px, transparent 1px);
+    background-size: 24px 24px;
+    color: var(--foreground);
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    line-height: 1.6;
+}
+
+h1, h2, h3, h4, .logo { font-family: var(--font-header); font-weight: 700; }
+
+/* ── Navigation ────────────────────────── */
+nav {
+    padding: 30px 60px;
+    display: flex; align-items: center; gap: 40px;
+    position: sticky; top: 0; 
+    background: rgba(253, 251, 247, 0.9);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    border-bottom: var(--border-width) dashed var(--foreground);
+}
+
+.logo { 
+    font-size: 2rem; color: var(--foreground);
+    cursor: pointer; transition: var(--transition); flex-shrink: 0;
+    transform: rotate(-2deg);
+}
+.logo:hover { transform: rotate(0deg) scale(1.05); color: var(--accent); }
+
+.nav-search { flex: 1; max-width: 500px; margin: 0 auto; }
+.search-box {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--paper-white);
+    border: var(--border-width) solid var(--foreground);
+    padding: 10px 24px;
+    border-radius: var(--wobbly-md);
+    box-shadow: var(--shadow-hard);
+    transition: var(--transition);
+    position: relative;
+}
+.search-box:focus-within { 
+    transform: translate(2px, 2px);
+    box-shadow: var(--shadow-hard-hover);
+    border-color: var(--secondary);
+}
+
+.search-box input {
+    background: transparent; border: none; outline: none;
+    color: var(--foreground); font-size: 1.2rem;
+    width: 100%; font-family: var(--font-body);
+}
+.search-box input::placeholder { color: rgba(45, 45, 45, 0.4); }
+
+.nav-links { display: flex; gap: 32px; flex-shrink: 0; }
+.nav-link { 
+    font-size: 1.1rem; font-weight: 700; color: var(--foreground);
+    cursor: pointer; transition: var(--transition);
+    font-family: var(--font-header);
+    position: relative;
+}
+.nav-link::after {
+    content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 3px;
+    background: var(--accent); transition: width 0.3s ease;
+    border-radius: 2px;
+}
+.nav-link:hover::after, .nav-link.active::after { width: 100%; }
+.nav-link.active { color: var(--accent); transform: scale(1.1) rotate(2deg); }
+
+/* ── Main Canvas ───────────────────────────────────── */
+main { max-width: 1200px; margin: 0 auto; padding: 60px 40px; }
+
+.grid-header { 
+    margin-bottom: 40px; font-size: 2rem; 
+    font-family: var(--font-header); color: var(--foreground);
+    display: flex; align-items: center; gap: 15px;
+}
+.grid-header::before {
+    content: ''; width: 40px; height: 4px; background: var(--secondary); border-radius: 2px;
+}
+
+.discovery-grid {
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 40px;
+}
+
+/* ── Hand-Drawn Card ───────────────────────────────── */
+.card { 
+    cursor: pointer; transition: var(--transition); position: relative; 
+    background: var(--paper-white);
+    border: var(--border-width) solid var(--foreground);
+    border-radius: var(--wobbly-md);
+    padding: 16px;
+    box-shadow: var(--shadow-hard);
+    animation: cardEntrance 0.5s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    opacity: 0; transform: translateY(20px) rotate(var(--rand-rot, 0deg));
+}
+@keyframes cardEntrance { to { opacity: 1; transform: translateY(0) rotate(var(--rand-rot, 0deg)); } }
+
+.card:hover { 
+    transform: translate(-2px, -2px) rotate(calc(var(--rand-rot, 0deg) + 2deg)) scale(1.02);
+    box-shadow: var(--shadow-hard-lg);
+    z-index: 10;
+}
+
+.card-img { 
+    aspect-ratio: 2/3; background: var(--muted); 
+    border-radius: 12px;
+    overflow: hidden; margin-bottom: 16px; position: relative;
+    border: 2px solid var(--foreground);
+}
+.card-img img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.5s ease; }
+.card-img img.loaded { opacity: 1; }
+
+/* ── Post-it Tag ── */
+.match-label {
+    position: absolute; top: -10px; right: -10px;
+    background: var(--post-it-yellow);
+    padding: 4px 12px; font-family: var(--font-header);
+    font-size: 0.9rem; font-weight: 700;
+    border: 2px solid var(--foreground);
+    transform: rotate(5deg);
+    box-shadow: 2px 2px 0px var(--foreground);
+    z-index: 5;
+}
+
+.card-title { font-size: 1.3rem; font-family: var(--font-header); margin-bottom: 8px; line-height: 1.2; }
+
+.card-meta-line { 
+    display: flex; align-items: center; gap: 8px; 
+    font-size: 0.95rem; color: var(--foreground); font-weight: 500;
+}
+.rating { color: var(--accent); font-weight: 700; display: flex; align-items: center; gap: 4px; }
+
+/* ── Detail View (The Giant Post-it) ── */
+.detail-view {
+    margin-bottom: 60px; display: none;
+    background: var(--post-it-yellow);
+    border: var(--border-width) solid var(--foreground);
+    border-radius: 30px 10px 50px 10px / 10px 50px 10px 30px;
+    padding: 40px;
+    box-shadow: var(--shadow-hard-lg);
+    position: relative;
+    animation: postItEntrance 0.4s ease-out;
+    transform: rotate(-1deg);
+}
+/* Tape Effect */
+.detail-view::before {
+    content: ''; position: absolute; top: -20px; left: 50%; transform: translateX(-50%) rotate(-2deg);
+    width: 120px; height: 40px; background: rgba(0,0,0,0.1); backdrop-filter: blur(2px);
+    border: 1px solid rgba(0,0,0,0.05); z-index: 10;
+}
+
+@keyframes postItEntrance { from { opacity: 0; transform: scale(0.95) rotate(0deg); } to { opacity: 1; transform: scale(1) rotate(-1deg); } }
+
+.detail-flex { display: flex; gap: 40px; align-items: start; }
+.detail-img { 
+    width: 260px; border-radius: 12px; overflow: hidden; flex-shrink: 0; 
+    border: var(--border-width) solid var(--foreground);
+    transform: rotate(2deg);
+    transition: transform 0.3s ease;
+}
+.detail-img:hover { transform: rotate(0deg) scale(1.02); }
+.detail-img img { width: 100%; display: block; }
+
+.detail-content { flex: 1; }
+.detail-tagline { font-family: var(--font-header); font-size: 1.1rem; color: var(--secondary); margin-bottom: 8px; }
+.detail-title { font-size: 3rem; margin-bottom: 12px; line-height: 1; }
+.detail-meta { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; font-weight: 700; color: var(--foreground); }
+.detail-desc { font-size: 1.2rem; line-height: 1.5; color: var(--foreground); margin-bottom: 24px; }
+
+/* ── Loading Skeleton (Sketched style) ── */
+.skeleton {
+    background: var(--muted);
+    position: relative; overflow: hidden;
+}
+.skeleton::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+/* ── Custom Scroll (Hand-drawn feel) ── */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { 
+    background: var(--foreground); 
+    border: 2px solid var(--bg);
+    border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+    nav { padding: 20px; flex-direction: column; gap: 15px; }
+    .detail-flex { flex-direction: column; align-items: center; text-align: center; }
+    .detail-img { width: 220px; }
+    .detail-title { font-size: 2.2rem; }
+}

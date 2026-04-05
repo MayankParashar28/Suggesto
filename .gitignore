@@ -1,10 +1,31 @@
-# Ignore large datasets
+# Large datasets
 ml-32m/
-processed/
+processed/ratings_filtered.csv
+processed/tags_processed.csv
+processed/user_stats.csv
+processed/movie_stats.csv
 
-# Ignore cache & system files
+# Allow only essential runtime files
+!processed/links_processed.csv
+!processed/movies_processed.csv
+!models/
+
+# Cache & system files
 __pycache__/
 *.pyc
-
-# Secrets
+.DS_Store
 .env
+.vercel/
+.python-version
+.vscode/
+
+# Build assets
+*uv.lock
+README.md
+*.ipynb
+*.md
+Dockerfile
+docker-compose.yml
+requirements.txt
+vercel.json
+.vercelignore
