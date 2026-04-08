@@ -16,9 +16,8 @@ def process_music(input_file="tracks_features.csv", output_path="processed/", mo
     df = pd.read_csv(input_file, usecols=cols)
     print(f"   📊 Loaded {len(df):,} total tracks.")
 
-    # 2. Filter to top 100k most recent (Vercel Optimization)
-    df = df.sort_values('release_date', ascending=False).head(100000).reset_index(drop=True)
-    print(f"   ✂️  Filtered to top {len(df):,} recent tracks for Sketchbook.")
+    # 2. Use Full Dataset (Removed truncation to ensure all tracks including Indian music are kept)
+    print(f"   ✂️  Preparing {len(df):,} tracks for Sketchbook.")
 
     # 3. Create Content Signature for TF-IDF
     # Cleaning string lists like "['Artist A', 'Artist B']"
@@ -28,7 +27,7 @@ def process_music(input_file="tracks_features.csv", output_path="processed/", mo
 
     # 4. Generate TF-IDF Matrix
     print("   🧠 Building Music TF-IDF (Universal Discovery)...")
-    tfidf = TfidfVectorizer(stop_words='english', max_features=20000)
+    tfidf = TfidfVectorizer(stop_words='english', max_features=30000)
     tfidf_matrix = tfidf.fit_transform(df['content'])
     
     # 5. Save Slim Processed Data (CSV for Suggesto Registry)

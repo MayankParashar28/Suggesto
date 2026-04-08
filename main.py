@@ -25,31 +25,32 @@ class CacheUpdate(BaseModel):
     tmdbId: int
     data: Dict[str, Any]
 
-class RecommendationResponse(BaseModel):
-    recommendations: List[Dict[str, Any]]
-    mode: Optional[str] = None
-    genre: Optional[str] = None
-    category: Optional[str] = None
-
 # ── Application Factory ──────────────────────────────────────────
 
-# 1. Initialize Services and Engines (Global shared state)
-print("🚀 Initializing Suggesto Hub (Fast Mapping Edition)...")
+# 1. Initialize Services and Engines (Parallel Startup)
+print("🚀 Initializing Suggesto Hub (High-Speed Parallel Edition)...")
 registry = SuggestoRegistry()
 
 DATA_PATH = "processed/"
 MODEL_PATH = "models/"
 
 mapping_service = MappingService(data_path=DATA_PATH)
-movie_engine = MovieEngine(data_path=DATA_PATH, model_path=MODEL_PATH, mapping_service=mapping_service)
-music_engine = MusicEngine(data_path=DATA_PATH, model_path=MODEL_PATH)
+tmdb_service = TMDBService()
 
-collab_engine = CollabEngine(data_path=DATA_PATH, model_path=MODEL_PATH)
+def load_engines():
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        f_movie = executor.submit(MovieEngine, data_path=DATA_PATH, model_path=MODEL_PATH, mapping_service=mapping_service)
+        f_music = executor.submit(MusicEngine, data_path=DATA_PATH, model_path=MODEL_PATH)
+        f_collab = executor.submit(CollabEngine, data_path=DATA_PATH, model_path=MODEL_PATH)
+        
+        return f_movie.result(), f_music.result(), f_collab.result()
+
+movie_engine, music_engine, collab_engine = load_engines()
 hybrid_engine = HybridEngine(movie_engine, collab_engine)
 
 registry.register("movies", hybrid_engine)
 registry.register("songs", music_engine)
-registry.register("courses", None)
 
 tmdb_service = TMDBService()
 
@@ -72,7 +73,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Suggesto Discovery API",
     version="2.1.0",
-    description="Hybrid Recommendation Engine for Movies, Songs, and Courses.",
+    description="Hybrid Recommendation Engine for Movies and Songs.",
     lifespan=lifespan
 )
 
@@ -95,11 +96,21 @@ async def get_tmdb_movie(tmdb_id: int):
 async def search_movies(q: str = Query(..., min_length=2)):
     """Search for movies with metadata enrichment."""
     results = movie_engine.search(q, limit=12)
-    return {"results": tmdb_service.enrich_recommendations(results)}
+    # Batch-fetch TMDB metadata for all results concurrently
+    tmdb_ids = [r["tmdbId"] for r in results if r.get("tmdbId", -1) > 0]
+    if tmdb_ids:
+        batch_data = await tmdb_service.batch_get_movie_details(tmdb_ids)
+        for r in results:
+            tid = str(r.get("tmdbId"))
+            if tid in batch_data:
+                r["cached"] = batch_data[tid]
+    return {"results": results}
 
 @app.get("/api/v1/songs/search")
 async def search_songs(q: str = Query(..., min_length=2)):
     """Search for songs via the Zero-Scipy MusicEngine."""
+    if music_engine is None:
+        return {"results": [], "status": "Music engine not available — model files missing."}
     results = music_engine.search(q, limit=24)
     return {"results": results}
 
@@ -124,8 +135,15 @@ async def recommend_movies(
     if not recs:
          raise HTTPException(status_code=404, detail="No recommendations found.")
 
-    enriched = tmdb_service.enrich_recommendations(recs)
-    return {"recommendations": enriched, "mode": mode, "genre": genre}
+    # Batch-fetch TMDB metadata concurrently
+    tmdb_ids = [r["tmdbId"] for r in recs if r.get("tmdbId", -1) > 0]
+    if tmdb_ids:
+        batch_data = await tmdb_service.batch_get_movie_details(tmdb_ids)
+        for r in recs:
+            tid = str(r.get("tmdbId"))
+            if tid in batch_data:
+                r["cached"] = batch_data[tid]
+    return {"recommendations": recs, "mode": mode, "genre": genre}
 
 @app.get("/api/v1/recommend/{content_type}/{item_id}")
 async def universal_recommend(
@@ -160,6 +178,36 @@ async def universal_recommend(
         enriched = recs # Return as is for songs
     
     return {"recommendations": enriched, "category": content_type}
+
+@app.get("/api/v1/discover/{content_type}")
+async def discover_content(content_type: str, limit: int = 24):
+    """Serve a random selection of content for the home page."""
+    engine = registry.get_engine(content_type)
+    if not engine:
+         raise HTTPException(status_code=404, detail=f"Category '{content_type}' is not active.")
+    
+    results = engine.discover(limit=limit)
+    
+    # Enrichment for movies
+    if content_type == "movies":
+        tmdb_ids = [r["tmdbId"] for r in results if r.get("tmdbId", -1) > 0]
+        if tmdb_ids:
+            batch_data = await tmdb_service.batch_get_movie_details(tmdb_ids)
+            for r in results:
+                tid = str(r.get("tmdbId"))
+                if tid in batch_data:
+                    r["cached"] = batch_data[tid]
+    
+    return {"results": results}
+
+@app.post("/api/v1/tmdb/batch")
+async def batch_tmdb(payload: dict):
+    """Batch fetch TMDB details for multiple movies at once."""
+    ids = payload.get("ids", [])
+    if not ids or len(ids) > 50:
+        return {"results": {}}
+    results = await tmdb_service.batch_get_movie_details(ids)
+    return {"results": results}
 
 @app.post("/api/v1/metadata/cache", include_in_schema=False)
 async def update_metadata_cache(payload: CacheUpdate):

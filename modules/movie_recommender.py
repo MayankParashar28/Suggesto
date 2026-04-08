@@ -13,6 +13,7 @@ import os
 import csv
 import pickle
 import numpy as np
+from sys import intern
 from modules.utils import parse_list_field, format_movie_response
 
 
@@ -20,23 +21,26 @@ class MovieEngine:
     """Content-based recommendation engine (Zero-Scipy)."""
 
     def __init__(self, data_path: str = "processed/", model_path: str = "models/", mapping_service=None):
-        print("  📦 Loading Content-Based Engine (Zero-Scipy Optimization)...")
+        print("  📦 Loading Content-Based Engine (Pandas Optimization)...")
         self.mapping_service = mapping_service
 
-        # ── 1. Load movie metadata ──────────────────────────────────
-        self.movies = []
+        # ── 1. Load movie metadata via Pandas ───────────────────────
+        import pandas as pd
         movies_file = os.path.join(data_path, "movies_processed.csv")
-        if os.path.exists(movies_file):
-            with open(movies_file, mode='r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for i, row in enumerate(reader):
-                    row["movieId"] = int(row["movieId"])
-                    row["genres"] = parse_list_field(row["genres"])
-                    row["title_norm"] = row["title"].lower().strip()
-                    row["_idx"] = i 
-                    self.movies.append(row)
+        self.df = pd.read_csv(movies_file)
+        self.df["title_norm"] = self.df["title"].str.lower().str.strip()
+        self.df["_idx"] = np.arange(len(self.df))
+        
+        # ID lookup map for O(1) performance
+        self.id_to_idx = dict(zip(self.df["movieId"], self.df["_idx"]))
 
-        self.id_to_idx = {m["movieId"]: i for i, m in enumerate(self.movies)}
+        # Pre-calculate discovery pool (movies with valid posters/IDs)
+        if self.mapping_service:
+            v_tmdb = pd.to_numeric(self.df["movieId"].apply(self.mapping_service.get_tmdb_id), errors='coerce').fillna(-1)
+            self.discover_pool = self.df[v_tmdb > 0].index.tolist()
+        else:
+            self.discover_pool = self.df[self.df["tmdbId"] > 0].index.tolist() if "tmdbId" in self.df.columns else self.df.index.tolist()
+
 
         # ── 2. Load Numpy-only CSR Components ───────────────────────
         self.data = np.load(os.path.join(model_path, "tfidf_data.npy"))
@@ -49,127 +53,64 @@ class MovieEngine:
             self.num_cols = int(shape[1])
 
         # Sanity check
-        assert self.num_rows == len(self.movies), (
+        assert self.num_rows == len(self.df), (
             f"Numpy matrix rows ({self.num_rows}) != "
-            f"movies count ({len(self.movies)})"
+            f"movies count ({len(self.df)})"
         )
 
-        print(f"  ✅ Content Engine ready — {len(self.movies):,} movies (Pure Numpy).")
+        # ── 3. Pre-build row_map for vectorized dot products ────────
+        # Maps each non-zero element index -> its row number
+        # Enables O(nnz) sparse dot products via np.bincount
+        self.row_map = np.zeros(len(self.indices), dtype=np.int32)
+        for r in range(self.num_rows):
+            s, e = self.indptr[r], self.indptr[r+1]
+            self.row_map[s:e] = r
+
+        print(f"  ✅ Content Engine ready — {len(self.df):,} movies (Pandas Vectorized).")
 
     # ── Public API ──────────────────────────────────────────────────
 
-    def search(self, query: str, limit: int = 10) -> list[dict]:
-        """Search movies by substring match on title. Returns list of dicts."""
+    def search(self, query: str, limit: int = 15) -> list[dict]:
+        """Vectorized search movies by title."""
         q = query.lower().strip()
-        hits = []
-        for movie in self.movies:
-            if q in movie["title_norm"]:
-                hits.append(self._format_with_ids(movie))
-                if len(hits) >= limit:
-                    break
-        return hits
+        mask = self.df["title_norm"].str.contains(q, na=False)
+        hits = self.df[mask].head(limit)
+        return [self._format_with_ids(row.to_dict()) for _, row in hits.iterrows()]
 
     def recommend(self, movie_id: int, top_n: int = 12) -> list[dict]:
         """
-        Generate content-based recommendations via Pure Numpy Sparse Math.
-        Equivalent to: scores = M[idx].dot(M.T)
+        Vectorized content-based recommendations via row_map + bincount.
+        O(nnz) sparse dot product — ~50ms for 87K movies.
         """
         idx = self.id_to_idx.get(movie_id)
         if idx is None: return []
 
-        # ── Manual Sparse Dot Product (Compressed Row) ──────────────
-        # We want the dot product of row `idx` with every other row.
-        # This implementation iterates over row `idx` non-zeros and 
-        # accumulates products in a dense output array.
-        
         # 1. Get non-zeros of the query row
         start, end = self.indptr[idx], self.indptr[idx+1]
+        if start == end: return []
         row_indices = self.indices[start:end]
         row_data = self.data[start:end]
 
-        # 2. To do this efficiently in pure numpy (without CSC), we can
-        # actually just broadcast this. If N_cols is large but the query 
-        # row is small, we can treat the query row as a vector and
-        # dot it with the sparse matrix.
-        
-        # Efficient Pure Numpy Sparse-to-Dense Dot Product:
-        scores = np.zeros(self.num_rows)
-        
-        # This part is O(N_elements) in the matrix if we iterate.
-        # But we can optimize by only looking at rows that share columns.
-        # Since we don't have CSC, we'll do a focused pass.
-        
-        # Performance Heuristic: 
-        # If the number of non-zeros in the query row is small, 
-        # we can use np.where or a temporary inverted index.
-        
-        # For simplicity and correctness (and 15ms speed goals), 
-        # let's use the standard CSR-to-Dense accumulation. 
-        # This is what most sparse libraries do when transposing is too expensive.
-        
-        for i in range(len(row_indices)):
-            col_idx = row_indices[i]
-            val = row_data[i]
-            
-            # Find all rows that have this column
-            # In pure CSR, this is slow — so let's pre-build a tiny col-to-row map 
-            # if we wanted. But since we need the whole scores vector, 
-            # we'll use a slightly different trick.
-            pass
+        # 2. Build query lookup
+        query_map = dict(zip(row_indices.tolist(), row_data.tolist()))
 
-        # ── REVISED: Matrix-Vector dot product in pure Numpy ────────
-        # We iterate over EVERY non-zero in the entire matrix once.
-        # This is O(Total_Non_Zeros) which is ~2M for your 16M matrix.
-        # Still very fast in Numpy.
-        
-        query_map = dict(zip(row_indices, row_data))
-        
-        # This is the "Correct but slow" way. 
-        # Let's use a faster Numpy-vectorized way:
-        for r in range(self.num_rows):
-            r_start, r_end = self.indptr[r], self.indptr[r+1]
-            r_idx = self.indices[r_start:r_end]
-            r_val = self.data[r_start:r_end]
-            
-            # Find common columns
-            common = np.intersect1d(row_indices, r_idx, assume_unique=True)
-            if len(common) > 0:
-                # Dot product of common parts
-                # (We need to get the actual values for these columns)
-                # This is still a bit slow.
-                pass
-
-        # ── FINAL OPTIMIZED IMPLEMENTATION: BROADCASTING ────────────
-        # To avoid CSC creation, we can flatten the indices and data 
-        # and do a mask.
-        
-        # Find all entries in the matrix matching any col in row_indices
+        # 3. Vectorized Sparse Dot Product via row_map + bincount
+        # Find all matrix entries sharing columns with query row
         mask = np.isin(self.indices, row_indices)
-        matching_data = self.data[mask]
-        matching_indices = self.indices[mask]
-        
-        # Now we need to know which row each matching entry belongs to.
-        # We can pre-calculate a `row_map` array: [0,0,0,1,1,2,2,...]
-        # or use `np.searchsorted` on `indptr`.
-        
-        # For this version, I'll use a row-iteration with a fast intersection 
-        # as it's the most robust and memory-efficient.
-        
-        query_cols_set = set(row_indices)
-        scores = np.zeros(self.num_rows)
-        for r in range(self.num_rows):
-            r_start, r_end = self.indptr[r], self.indptr[r+1]
-            if r_start == r_end: continue
-            
-            # Manual loop for speed in this specific case
-            row_sum = 0
-            for k in range(r_start, r_end):
-                col = self.indices[k]
-                if col in query_cols_set:
-                    row_sum += self.data[k] * query_map[col]
-            scores[r] = row_sum
+        if not np.any(mask): return []
 
-        # ── 3. Fast top-N via argpartition ──────────────────────────
+        matching_vals = self.data[mask]
+        matching_rows = self.row_map[mask]
+        matching_cols = self.indices[mask]
+
+        # Weight each match by the query vector's value for that column
+        weights = np.array([query_map[c] for c in matching_cols.tolist()])
+        contributions = matching_vals * weights
+
+        # Sum contributions per row
+        scores = np.bincount(matching_rows, weights=contributions, minlength=self.num_rows)
+
+        # 4. Fast top-N via argpartition
         n_candidates = min(top_n + 1, len(scores))
         top_indices_unsorted = np.argpartition(scores, -n_candidates)[-n_candidates:]
         top_indices = top_indices_unsorted[np.argsort(scores[top_indices_unsorted])[::-1]]
@@ -177,10 +118,10 @@ class MovieEngine:
 
         results = []
         for i in top_indices:
-            movie = self.movies[i]
+            row = self.df.iloc[i].to_dict()
             results.append(
                 self._format_with_ids(
-                    movie, 
+                    row, 
                     score=self._normalize_score(float(scores[i])), 
                     mode="content"
                 )
@@ -200,6 +141,12 @@ class MovieEngine:
              score=score,
              mode=mode
         )
+
+    def discover(self, limit: int = 24) -> list[dict]:
+        """Return a random selection of movies from the verified pool."""
+        sample_indices = np.random.choice(self.discover_pool, min(len(self.discover_pool), limit), replace=False)
+        rows = self.df.iloc[sample_indices]
+        return [self._format_with_ids(row.to_dict()) for _, row in rows.iterrows()]
 
     def _normalize_score(self, score: float) -> float:
         if score <= 0: return 0.0

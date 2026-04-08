@@ -60,3 +60,11 @@ class HybridEngine:
             r["mode"] = "hybrid"
 
         return blended[:top_n]
+
+    def search(self, query: str, limit: int = 10) -> list[dict]:
+        """Delegate search to content engine."""
+        return self.content.search(query, limit)
+
+    def discover(self, limit: int = 24) -> list[dict]:
+        """Delegate discovery to content engine."""
+        return self.content.discover(limit)

@@ -14,8 +14,7 @@ class MappingService:
         # Structure: { category: { source_id: { target_key: target_id } } }
         self.store: Dict[str, Dict[int, Dict[str, Any]]] = {
             "movies": {},
-            "songs": {},
-            "courses": {}
+            "songs": {}
         }
         
         # Load initial movie mappings
@@ -35,7 +34,7 @@ class MappingService:
                         sid = int(row[source_key])
                         # Store all other columns as potential mapping targets
                         self.store[category][sid] = {
-                            k: (int(v) if v and v != '-1' else v) 
+                            k: (int(v) if v and str(v) != '-1' and str(v).strip() != "" else -1) 
                             for k, v in row.items() if k != source_key
                         }
                     except (ValueError, KeyError):
