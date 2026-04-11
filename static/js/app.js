@@ -9,11 +9,18 @@ const TMDB_POSTER = 'https://image.tmdb.org/t/p/w500';
 const cache = {};
 const CACHE_MAX = 500; // O6: Memory cap
 
-const grid = document.getElementById('discovery-results');
-const input = document.getElementById('query-input');
-const detailView = document.getElementById('detail-view');
-const genrePills = document.getElementById('genre-pills');
-const spotlightContainer = document.getElementById('spotlight-container');
+// ── Elements (Resolved in init) ──────────────────────
+let grid, input, detailView, genrePills, spotlightContainer;
+
+function resolveElements() {
+    grid = document.getElementById('discovery-results');
+    input = document.getElementById('query-input');
+    detailView = document.getElementById('detail-view');
+    genrePills = document.getElementById('genre-pills');
+    spotlightContainer = document.getElementById('spotlight-container');
+    
+    if (!grid) console.warn("⚠️ Warning: 'discovery-results' grid element not found.");
+}
 
 const CATEGORIES = {
     movies: ['All', 'Bollywood', 'Action', 'Sci-Fi', 'Horror', 'Romance', 'Comedy', 'Drama'],
@@ -32,14 +39,31 @@ const COURSE_FALLBACKS = {
 
 // ── B1 FIX: Single DOMContentLoaded handler ──────────
 window.addEventListener('DOMContentLoaded', () => {
+    console.log("🎨 Inkpick Hub: DOM Content Loaded. Initializing...");
     try {
+        resolveElements();
         if (typeof lucide !== 'undefined') lucide.createIcons();
         initRouter();
         initMascot();
         initShortcuts();
-        console.log("✅ Inkpick Hub initialized.");
+        
+        // Safety: Ensure visibility of main content
+        const main = document.getElementById('main-content');
+        if (main) main.style.opacity = '1';
+
+        console.log("✅ Inkpick Hub initialized successfully.");
     } catch (err) {
-        console.error("❌ Init error:", err);
+        console.error("❌ Critical Hub Init Error:", err);
+        // Show visible error if the core crashes
+        const errGrid = document.getElementById('discovery-results');
+        if (errGrid) {
+            errGrid.innerHTML = `
+                <div class="empty-state" style="color:var(--accent);">
+                    <h3>⚠️ Hub initialization failure</h3>
+                    <p>${err.message}</p>
+                    <button onclick="location.reload()">Reload Hub</button>
+                </div>`;
+        }
     }
 });
 
@@ -104,7 +128,11 @@ function movePaperClip(el) {
     clip.style.transform = `translateX(-50%) rotate(${Math.random() * 20 - 10}deg)`;
 }
 
-// ── O6: Cache pruning ────────────────────────────────
+function pruneCache() {
+    const keys = Object.keys(cache);
+    if (keys.length > CACHE_MAX) {
+        // Remove oldest half
+        keys.slice(0, Math.floor(CACHE_MAX / 2)).forEach(k => delete cache[k]);
     }
 }
 
@@ -117,12 +145,24 @@ function initShortcuts() {
     });
 }
 
-function showSkeletons(count = 8) {
+function showSkeletons(count = 12) {
+    console.log(`🖋️ Sketching ${count} skeletons...`);
+    if (!grid) return;
+    
     let html = '';
     for (let i = 0; i < count; i++) {
-        html += `<div class="card skeleton" style="height:350px; border-radius:15px;"></div>`;
+        const rot = (Math.random() * 4 - 2).toFixed(1);
+        html += `
+            <div class="skeleton" style="transform: rotate(${rot}deg); animation-delay: ${i * 0.05}s;">
+                <div class="skel-card">
+                    <div class="skel-img"></div>
+                    <div class="skel-title"></div>
+                    <div class="skel-text"></div>
+                </div>
+            </div>`;
     }
     grid.innerHTML = html;
+    grid.style.opacity = '1';
 }
 
 

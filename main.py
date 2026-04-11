@@ -73,10 +73,6 @@ async def lifespan(app: FastAPI):
     app.state.movie_engine = movie
     app.state.music_engine = music
     app.state.course_engine = course
-    # Store in app state
-    app.state.movie_engine = movie
-    app.state.music_engine = music
-    app.state.course_engine = course
     app.state.collab_engine = collab
     app.state.hybrid_engine = hybrid
     
