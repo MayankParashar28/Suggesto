@@ -28,9 +28,6 @@ __pycache__/
 
 # Build scratch files
 *uv.lock
-README.md
-*.ipynb
-*.md
 Dockerfile
 docker-compose.yml
 tracks_features.csv
