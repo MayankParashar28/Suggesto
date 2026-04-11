@@ -1,7 +1,7 @@
 [project]
 name = "ml"
 version = "0.1.0"
-description = "Vercel optimized edition of Suggesto."
+description = "Vercel optimized edition of Inkpick."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.3",

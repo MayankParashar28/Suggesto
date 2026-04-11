@@ -1,12 +1,12 @@
 """
-Suggesto Registry
+Inkpick Registry
 =================
 Architecture to support multi-content discovery (Movies, Music, Courses).
 """
 
-class SuggestoRegistry:
+class InkpickRegistry:
     def __init__(self):
-        self.engines = {}
+        self.engines: Dict[str, Any] = {}
 
     def register(self, name: str, engine):
         """Register a recommendation engine for a specific content type."""

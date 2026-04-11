@@ -1,5 +1,5 @@
 /**
- * Suggesto — Hand-Drawn Discovery Hub
+ * Inkpick — Hand-Drawn Discovery Hub
  * Consolidated & Stabilized — All Bugs Fixed
  */
 
@@ -36,7 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if (typeof lucide !== 'undefined') lucide.createIcons();
         initRouter();
         initMascot();
-        console.log("✅ Suggesto Hub initialized.");
+        console.log("✅ Inkpick Hub initialized.");
     } catch (err) {
         console.error("❌ Init error:", err);
     }
@@ -67,11 +67,11 @@ function internalSwitchTab(tab, el) {
     movePaperClip(el);
 
     const titles = {
-        movies: "Suggesto: Cinema Log 🎬",
-        songs: "Suggesto: Playlist Scribbles 🎧",
-        courses: "Suggesto: Learning Scribbles 📚"
+        movies: "Inkpick: Cinema Log 🎬",
+        songs: "Inkpick: Playlist Scribbles 🎧",
+        courses: "Inkpick: Learning Scribbles 📚"
     };
-    document.title = titles[tab] || "Suggesto: Sketchbook";
+    document.title = titles[tab] || "Inkpick: Sketchbook";
 
     // Update placeholder
     if (input) {

@@ -14,7 +14,7 @@ from modules.music_recommender import MusicEngine
 from modules.course_recommender import CourseEngine
 from modules.collab_recommender import CollabEngine
 from modules.hybrid_recommender import HybridEngine
-from modules.suggesto_registry import SuggestoRegistry
+from modules.inkpick_registry import InkpickRegistry
 from services.tmdb import TMDBService
 from services.mapping import MappingService
 
@@ -30,7 +30,7 @@ class CacheUpdate(BaseModel):
 
 # 1. Initialize Services and Engines (Parallel Startup)
 print("🚀 Initializing Suggesto Hub (High-Speed Parallel Edition)...")
-registry = SuggestoRegistry()
+registry = InkpickRegistry()
 
 DATA_PATH = "processed/"
 MODEL_PATH = "models/"
