@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>🖋️ Inkpick</h1>
+<h1> Inkpick</h1>
 
 <p><strong>High-Performance Multi-Domain Content Discovery & Recommendation Engine</strong></p>
 
@@ -194,10 +194,10 @@ Returns ranked recommendations for a given item within a domain.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `domain` | `path` | ✅ | One of `cinema`, `audio`, `education` |
-| `item_id` | `query` | ✅ | Catalog item identifier |
-| `top_k` | `query` | ❌ | Number of results (default: `10`) |
-| `mode` | `query` | ❌ | `content`, `collaborative`, or `hybrid` (default: `hybrid`) |
+| `domain` | `path`  | One of `cinema`, `audio`, `education` |
+| `item_id` | `query`  | Catalog item identifier |
+| `top_k` | `query`  | Number of results (default: `10`) |
+| `mode` | `query`  | `content`, `collaborative`, or `hybrid` (default: `hybrid`) |
 
 **Example**
 ```bash
@@ -224,8 +224,8 @@ Fuzzy-search the catalog with Levenshtein fallback.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `domain` | `path` | ✅ | Target domain |
-| `q` | `query` | ✅ | Search query string |
+| `domain` | `path`  | Target domain |
+| `q` | `query`  | Search query string |
 
 ---
 
@@ -259,7 +259,7 @@ Simply connect the repository to your platform of choice — no additional confi
 | P99 inference latency | < 50ms |
 | Catalog size (tested) | 80,000+ items |
 | Memory footprint (inference) | Reduced vs. SciPy baseline |
-| Cold-start support | ✅ Full (content-based fallback) |
+| Cold-start support |  Full (content-based fallback) |
 
 ---
 
