@@ -1,8 +1,9 @@
+/* ── Suggesto Mascot: Consolidated & B4 Fixed ── */
 .mascot-container {
     position: absolute;
-    bottom: -15px; /* Stand on the dashed border */
+    bottom: -15px;
     left: 40px;
-    width: 60px; /* Scaled down for navbar */
+    width: 60px;
     height: 60px;
     z-index: 1000;
     transition: all 2.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -10,15 +11,18 @@
     will-change: transform;
 }
 
+
+
+/* Ink-Wash Filter */
 #sketchy-3d {
     width: 100%;
     height: 100%;
     --poster-color: transparent;
     cursor: pointer;
-    filter: drop-shadow(4px 4px 0px rgba(0,0,0,0.05));
+    filter: none;
 }
 
-/* ── Speech Bubble ─────────────────────────────────── */
+/* Speech Bubble */
 .sketchy-bubble {
     position: absolute;
     bottom: 110%;
@@ -27,15 +31,15 @@
     padding: 12px;
     background: var(--post-it-yellow);
     border: 3px solid var(--foreground);
-    border-radius: var(--wobbly-md);
+    border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
     font-family: var(--font-header);
     font-size: 0.95rem;
     font-weight: 700;
     line-height: 1.2;
-    transform: scale(0) rotate(5deg);
+    transform: scale(0) rotate(15deg);
     transform-origin: bottom right;
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 4px 4px 0px var(--foreground);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+    box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.1);
     opacity: 0;
 }
 
@@ -58,26 +62,32 @@
     opacity: 1;
 }
 
-/* ── Animations ───────────────────────────────────── */
+/* Animations */
 @keyframes floating {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-15px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-15px);
+    }
 }
 
 @keyframes wobbly {
-    0%, 100% { transform: rotate(-2deg) scale(1); }
-    50% { transform: rotate(2deg) scale(1.05); }
+
+    0%,
+    100% {
+        transform: rotate(-2deg) scale(1);
+    }
+
+    50% {
+        transform: rotate(2deg) scale(1.05);
+    }
 }
 
-/* ── Movement States ── */
-.mascot-container.at-navbar {
-    bottom: auto;
-    top: 90px;
-    right: 40px;
-    width: 60px;
-    height: 60px;
-}
-
+/* ── B4 FIX: Single definition per movement state ── */
 .mascot-container.at-logo {
     left: 20px;
     bottom: -15px;
@@ -102,6 +112,15 @@
 }
 
 @media (max-width: 768px) {
-    .mascot-container { width: 80px; height: 80px; bottom: 20px; right: 20px; }
-    .sketchy-bubble { width: 140px; font-size: 0.8rem; }
+    .mascot-container {
+        width: 80px;
+        height: 80px;
+        bottom: 20px;
+        right: 20px;
+    }
+
+    .sketchy-bubble {
+        width: 140px;
+        font-size: 0.8rem;
+    }
 }

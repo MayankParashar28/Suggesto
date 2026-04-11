@@ -51,10 +51,9 @@ class TMDBService:
                 response.raise_for_status()
                 data = response.json()
                 
-                # Auto-cache new results
+                # Auto-cache new results (O2: save deferred to batch)
                 self.cache[str(tmdb_id)] = data
                 self.dirty = True
-                self._save_cache()
                 
                 return data
             except httpx.HTTPStatusError as e:

@@ -1,0 +1,11 @@
+courseId,title,instructor,platform,category,rating,url
+2000001,Harvard CS50 – Full Computer Science Course,David J. Malan,YouTube,Web Dev,4.9,https://www.youtube.com/watch?v=8mAITcNt77k
+2000002,JavaScript Mastery – Build 4 Real World Apps,Adrian Twarog,YouTube,Web Dev,4.8,https://www.youtube.com/watch?v=LMagNcngvcU
+2000003,React JS Crash Course 2024,Traversy Media,YouTube,Web Dev,4.7,https://www.youtube.com/watch?v=w7ejDZ8SWv8
+2000004,Python for Beginners (Full Course),Programming with Mosh,YouTube,Web Dev,4.9,https://www.youtube.com/watch?v=_uQrJ0TkZlc
+2100001,Typography Hierarchy – Design Principles,The Futur,YouTube,Design,4.8,https://www.youtube.com/watch?v=z7vA9nI2lxs
+2100002,UI/UX Design Full Course,DesignCourse,YouTube,Design,4.6,https://www.youtube.com/watch?v=c9Wg6ndoxSg
+2200001,How to Build a Startup,Y Combinator,YouTube,Business,4.9,https://www.youtube.com/watch?v=CBYhVcOn7To
+2200002,Building a Personal Brand in 2024,GaryVee,YouTube,Business,4.5,https://www.youtube.com/watch?v=R6u_D7IuN-k
+2300001,Music Theory for Electronic Producers,Andrew Huang,YouTube,Music,4.8,https://www.youtube.com/watch?v=rgaTLrZGlk0
+2300002,Mixing Masterclass (Logic Pro X),In The Mix,YouTube,Music,4.7,https://www.youtube.com/watch?v=7uVQu8XpE80

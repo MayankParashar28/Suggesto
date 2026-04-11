@@ -1,12 +1,13 @@
 /**
- * Suggesto — Hand-Drawn Discovery Client
- * Optimized Overhaul — Billboard Hero & Discovery Tabs
+ * Suggesto — Hand-Drawn Discovery Hub
+ * Consolidated & Stabilized — All Bugs Fixed
  */
 
 let currentTab = 'movies';
 let currentGenre = 'All';
 const TMDB_POSTER = 'https://image.tmdb.org/t/p/w500';
 const cache = {};
+const CACHE_MAX = 500; // O6: Memory cap
 
 const grid = document.getElementById('discovery-results');
 const input = document.getElementById('query-input');
@@ -16,28 +17,99 @@ const spotlightContainer = document.getElementById('spotlight-container');
 
 const CATEGORIES = {
     movies: ['All', 'Bollywood', 'Action', 'Sci-Fi', 'Horror', 'Romance', 'Comedy', 'Drama'],
-    songs: ['All', 'Bollywood', 'Pop', 'Rock', 'Electronic', 'Jazz', 'Chill', 'Dance']
+    songs: ['All', 'Bollywood', 'Pop', 'Rock', 'Electronic', 'Jazz', 'Chill', 'Dance'],
+    courses: ['All', 'YouTube', 'Web Dev', 'Design', 'Business', 'Music']
 };
 
-window.onload = () => {
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-    renderPills();
-    fetchDiscovery();
+// Course fallback images by category (O7: No more Microlink)
+const COURSE_FALLBACKS = {
+    'web dev': 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=500&q=80',
+    'design': 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=500&q=80',
+    'business': 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&q=80',
+    'music': 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=500&q=80',
+    'default': 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&q=80'
 };
+
+// ── B1 FIX: Single DOMContentLoaded handler ──────────
+window.addEventListener('DOMContentLoaded', () => {
+    try {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        initRouter();
+        initMascot();
+        console.log("✅ Suggesto Hub initialized.");
+    } catch (err) {
+        console.error("❌ Init error:", err);
+    }
+});
 
 input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') handleSearch(input.value.trim());
 });
 
-function switchTab(tab, el) {
+window.addEventListener('hashchange', initRouter);
+
+function initRouter() {
+    const hash = window.location.hash || '#/movies';
+    const route = hash.replace('#/', '');
+    const validRoutes = ['movies', 'songs', 'courses'];
+    const tab = validRoutes.includes(route) ? route : 'movies';
+    const navLink = document.querySelector(`.nav-link[data-route="${tab}"]`);
+    internalSwitchTab(tab, navLink);
+}
+
+function internalSwitchTab(tab, el) {
     currentTab = tab;
     currentGenre = 'All';
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-    el.classList.add('active');
-    
+    if (el) el.classList.add('active');
+
+    // Paper clip
+    movePaperClip(el);
+
+    const titles = {
+        movies: "Suggesto: Cinema Log 🎬",
+        songs: "Suggesto: Playlist Scribbles 🎧",
+        courses: "Suggesto: Learning Scribbles 📚"
+    };
+    document.title = titles[tab] || "Suggesto: Sketchbook";
+
+    // Update placeholder
+    if (input) {
+        const ph = { movies: 'Sketch a movie title...', songs: 'Sketch a song or artist...', courses: 'Sketch a course topic...' };
+        input.placeholder = ph[tab] || 'Search...';
+    }
+
     if (detailView) detailView.style.display = 'none';
     renderPills();
     fetchDiscovery();
+
+    // Mascot commentary
+    const mascotConfig = {
+        movies: { quote: "Cinema Log activated! 🍿", anim: "ThumbsUp" },
+        songs: { quote: "Tuning into Playlist Scribbles! 🎸", anim: "Dance" },
+        courses: { quote: "Learning mode: ON! 📚", anim: "Yes" }
+    };
+    const config = mascotConfig[tab] || { quote: "Sketching something fresh! 🖋️", anim: "Wave" };
+    triggerSketchy3D(config.quote, config.anim);
+}
+
+function movePaperClip(el) {
+    const clip = document.getElementById('nav-paper-clip');
+    if (!clip || !el) return;
+    const rect = el.getBoundingClientRect();
+    const parentRect = el.parentElement.getBoundingClientRect();
+    const left = rect.left - parentRect.left + (rect.width / 2);
+    clip.style.left = `${left}px`;
+    clip.style.transform = `translateX(-50%) rotate(${Math.random() * 20 - 10}deg)`;
+}
+
+// ── O6: Cache pruning ────────────────────────────────
+function pruneCache() {
+    const keys = Object.keys(cache);
+    if (keys.length > CACHE_MAX) {
+        // Remove oldest half
+        keys.slice(0, Math.floor(CACHE_MAX / 2)).forEach(k => delete cache[k]);
+    }
 }
 
 /**
@@ -51,9 +123,9 @@ async function fetchDiscovery() {
         if (!res.ok) throw new Error("Server was having trouble sketching...");
         const data = await res.json();
         const items = data.results || [];
-        
+
         if (items.length === 0) {
-            grid.innerHTML = '<div style="padding:40px; text-align:center; font-family:var(--font-header);">✍️ No sketches found in this wing of the gallery.</div>';
+            grid.innerHTML = '<div style="padding:40px; text-align:center; font-family:var(--font-header);">✍️ No sketches found in this wing.</div>';
             return;
         }
 
@@ -62,20 +134,19 @@ async function fetchDiscovery() {
             items.forEach(item => {
                 if (item.cached && item.tmdbId > 0) cache[item.tmdbId] = item.cached;
             });
+            pruneCache();
         }
-        
-        // Pick one for Spotlight
+
         renderSpotlight(items[0]);
-        renderItems(items.slice(1)); // Rest in the grid
-        
-        // Batch fetch
+        renderItems(items.slice(1));
+
         if (currentTab === 'movies') {
             const uncached = items.filter(i => i.tmdbId > 0 && !cache[i.tmdbId]).map(i => i.tmdbId);
             if (uncached.length > 0) batchFetchMeta(uncached);
         }
     } catch (err) {
         console.error("Discovery error:", err);
-        grid.innerHTML = `<div style="padding:40px; text-align:center; color:var(--accent); font-family:var(--font-header);">⚠️ Oops! The pencil broke: ${err.message}</div>`;
+        grid.innerHTML = `<div style="padding:40px; text-align:center; color:var(--accent); font-family:var(--font-header);">⚠️ Pencil broke: ${err.message}</div>`;
     }
 }
 
@@ -85,13 +156,24 @@ async function handleSearch(q) {
         const res = await fetch(`/api/v1/${currentTab}/search?q=${encodeURIComponent(q)}&limit=24`);
         const data = await res.json();
         const items = data.results || data;
+
         renderItems(items);
-        if (currentTab === 'movies') {
+
+        if (items.length === 0 && data.suggestion) {
+            triggerSketchy3D(`Did you mean <span style="text-decoration:underline; cursor:pointer; color:var(--secondary);" onclick="applySuggestion('${data.suggestion.replace(/'/g, "\\'")}')">${data.suggestion}</span>?`, "Jump");
+        } else if (currentTab === 'movies') {
             const uncached = items.filter(i => i.tmdbId > 0 && !cache[i.tmdbId]).map(i => i.tmdbId);
             if (uncached.length > 0) batchFetchMeta(uncached);
         }
     } catch (err) {
         console.error("Search error:", err);
+    }
+}
+
+function applySuggestion(text) {
+    if (input) {
+        input.value = text;
+        handleSearch(text);
     }
 }
 
@@ -117,6 +199,7 @@ function renderPills() {
 
 function handleGenreClick(genre) {
     if (genre === 'All') fetchDiscovery();
+    else if (genre === 'YouTube') handleSearch('YouTube');
     else handleSearch(genre);
 }
 
@@ -126,22 +209,27 @@ function renderSpotlight(item) {
     if (!spotlightContainer || !item) return;
     const itemId = item.movieId || item.spotifyId;
     featuredItems.set(String(itemId), item);
-    
-    const isMusic = !!item.artist;
-    const meta = !isMusic && cache[item.tmdbId];
-    const image = isMusic ? generateMusicArt(item) : 
-                (meta && meta.poster_path ? `<img src="${TMDB_POSTER}${meta.poster_path}" alt="">` : generateMovieSketch(item));
+
+    const isMusic = !!item.artist && item.tmdbId === -1;
+    const isCourse = item.tmdbId === -2;
+    const meta = !isMusic && !isCourse && cache[item.tmdbId];
+    const image = isCourse ? generateCoursePoster(item) :
+        (isMusic ? generateMusicArt(item) :
+            (meta && meta.poster_path ? `<img src="${TMDB_POSTER}${meta.poster_path}" alt="">` : generateMovieSketch(item)));
 
     spotlightContainer.innerHTML = `
-        <div class="hero-card" onclick="selectItemById('${itemId}')">
+        <div class="hero-card ${isCourse ? 'course-hero' : ''}" onclick="selectItemById('${itemId}')">
+            <div class="masking-tape top-left"></div>
+            <div class="masking-tape top-right"></div>
             <div class="hero-img">${image}</div>
             <div class="hero-content">
                 <div class="hero-tag">PICK OF THE DAY</div>
                 <h1 class="hero-title">${item.title}</h1>
-                <p class="hero-desc">${!isMusic ? (meta && meta.overview ? meta.overview : 'A classic sketch in the vault...') : `A track from "${item.album || 'Unknown'}" by ${item.artist}.`}</p>
+                <p class="hero-desc">${isCourse ? `A top-rated lesson from ${item.album}. Category: ${item.category}` : (!isMusic ? (meta && meta.overview ? meta.overview : 'A classic sketch in the vault...') : `A track from "${item.album || 'Unknown'}" by ${item.artist}.`)}</p>
                 <div class="detail-meta">
                     <span>${item.releaseYear || ''}</span>
                     ${isMusic ? `<span class="acoustic-badge">${Math.round(item.tempo)} BPM</span>` : ''}
+                    ${isCourse ? `<span class="academic-badge">${item.category}</span> <span class="rating">⭐ ${item.rating}</span>` : ''}
                 </div>
             </div>
         </div>
@@ -151,36 +239,36 @@ function renderSpotlight(item) {
 function renderItems(items) {
     if (!grid) return;
     grid.innerHTML = '';
-    
-    // Memory hygiene: cap the cache to avoid leaks
     if (featuredItems.size > 200) featuredItems.clear();
 
     items.forEach((item, i) => {
+        const isMusic = item.tmdbId === -1;
+        const isCourse = item.tmdbId === -2;
         const itemId = item.movieId || item.spotifyId;
         featuredItems.set(String(itemId), item);
-        
+
         const card = document.createElement('div');
-        card.className = 'card';
+        card.className = `card ${isCourse ? 'course-item' : ''}`;
         card.dataset.tmdbId = item.tmdbId || '';
         const rot = (Math.random() * 4 - 2).toFixed(1);
         card.style.setProperty('--rand-rot', `${rot}deg`);
         card.style.animationDelay = `${i * 0.05}s`;
         card.onclick = () => selectItemById(itemId);
 
-        const isMusic = !!item.artist;
-        const meta = !isMusic && cache[item.tmdbId];
-        
-        let imageHtml = isMusic ? generateMusicArt(item) : 
-                    (meta && meta.poster_path ? `<img src="${TMDB_POSTER}${meta.poster_path}" class="loaded" loading="lazy" decoding="async">` : 
-                    (item.tmdbId > 0 ? `<img src="" id="img-${item.tmdbId}" class="skeleton" loading="lazy">` : generateMovieSketch(item)));
+        const meta = !isMusic && !isCourse && cache[item.tmdbId];
+
+        let imageHtml = isCourse ? generateCoursePoster(item) :
+            (isMusic ? generateMusicArt(item) :
+                (meta && meta.poster_path ? `<img src="${TMDB_POSTER}${meta.poster_path}" class="loaded" loading="lazy" decoding="async">` :
+                    (item.tmdbId > 0 ? `<img src="" id="img-${item.tmdbId}" class="skeleton" loading="lazy">` : generateMovieSketch(item))));
 
         card.innerHTML = `
-            <div class="match-label">${isMusic ? 'Draft' : 'Picked'}</div>
+            <div class="match-label">${isMusic ? 'Draft' : (isCourse ? 'Lesson' : 'Picked')}</div>
             <div class="card-img">${imageHtml}</div>
             <div class="card-title">${item.title}</div>
             <div class="card-meta-line">
-                <span>${isMusic ? item.artist : item.releaseYear}</span>
-                ${item.vote_average ? `<span class="rating">⭐ ${item.vote_average.toFixed(1)}</span>` : ''}
+                <span>${isCourse ? item.artist : (isMusic ? item.artist : item.releaseYear)}</span>
+                ${item.rating ? `<span class="rating">⭐ ${item.rating}</span>` : (item.vote_average ? `<span class="rating">⭐ ${item.vote_average.toFixed(1)}</span>` : '')}
             </div>
         `;
         grid.appendChild(card);
@@ -192,28 +280,33 @@ function selectItemById(id) {
     if (item) selectItem(item);
 }
 
-/**
- * UTILS & LEGACY WRAPPERS
- */
 async function selectItem(item) {
     if (!detailView) return;
     detailView.style.display = 'block';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.getElementById('det-title').textContent = item.title;
-    const isMusic = !!item.artist;
+    const isMusic = item.tmdbId === -1;
+    const isCourse = item.tmdbId === -2;
     const imgContainer = document.getElementById('det-img-container');
+    imgContainer.className = `detail-img ${isCourse ? 'course-detail' : ''}`;
 
     if (isMusic) {
         imgContainer.innerHTML = generateMusicArt(item);
         document.getElementById('det-tagline').textContent = item.artist;
         document.getElementById('det-desc').textContent = `Featured in "${item.album || 'Single'}".`;
         document.getElementById('det-meta').innerHTML = `<span>${item.releaseYear}</span> <span class="acoustic-badge">${Math.round(item.tempo)} BPM</span>`;
+    } else if (isCourse) {
+        imgContainer.innerHTML = generateCoursePoster(item);
+        document.getElementById('det-tagline').textContent = `Instructor: ${item.artist}`;
+        document.getElementById('det-desc').textContent = `A top-rated lesson from ${item.album}. Category: ${item.category}`;
+        document.getElementById('det-meta').innerHTML = `<span>Rating: ${item.rating} ★</span> <span class="acoustic-badge">${item.category}</span>`;
     } else {
         let meta = cache[item.tmdbId];
         if (!meta && item.tmdbId > 0) {
             const res = await fetch(`/api/v1/tmdb/movie/${item.tmdbId}`);
             meta = await res.json();
             cache[item.tmdbId] = meta;
+            pruneCache();
         }
         meta = meta || {};
         imgContainer.innerHTML = meta.poster_path ? `<img src="${TMDB_POSTER + meta.poster_path}">` : generateMovieSketch(item);
@@ -221,8 +314,7 @@ async function selectItem(item) {
         document.getElementById('det-desc').textContent = meta.overview || "";
         document.getElementById('det-meta').innerHTML = `<span>${meta.release_date?.split('-')[0] || ''}</span> <span>${meta.runtime ? meta.runtime + 'm' : ''}</span>`;
     }
-    
-    // Update Play Link
+
     const playLink = document.getElementById('det-play-link');
     const playText = document.getElementById('det-play-text');
     if (playLink && playText) {
@@ -230,7 +322,11 @@ async function selectItem(item) {
             playLink.href = `https://open.spotify.com/track/${item.spotifyId}`;
             playText.textContent = "Play on Spotify";
             playLink.style.display = "inline-flex";
-        } else if (!isMusic && item.tmdbId > 0) {
+        } else if (isCourse && item.url) {
+            playLink.href = item.url;
+            playText.textContent = `Start on ${item.album}`;
+            playLink.style.display = "inline-flex";
+        } else if (!isMusic && !isCourse && item.tmdbId > 0) {
             playLink.href = `https://www.themoviedb.org/movie/${item.tmdbId}`;
             playText.textContent = "Experience on TMDB";
             playLink.style.display = "inline-flex";
@@ -239,7 +335,7 @@ async function selectItem(item) {
         }
     }
 
-    lucide.createIcons();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
     detailView.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -257,7 +353,8 @@ async function batchFetchMeta(tmdbIds) {
             const card = document.querySelector(`.card[data-tmdb-id="${tid}"]`);
             if (card) updateCard(parseInt(tid), card, meta);
         }
-    } catch (err) {}
+        pruneCache();
+    } catch (err) { }
 }
 
 function updateCard(tid, cardEl, data) {
@@ -274,31 +371,53 @@ function updateCard(tid, cardEl, data) {
 function seedRandom(seed) {
     let s = 0;
     for (let i = 0; i < seed.length; i++) s = seed.charCodeAt(i) + ((s << 5) - s);
-    return function() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+    return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 }
 function generateScribblePath(rng, w, h) {
     const pts = [];
-    for (let i =0; i<5; i++) pts.push(`${Math.floor(rng()*w)},${Math.floor(rng()*h)}`);
+    for (let i = 0; i < 5; i++) pts.push(`${Math.floor(rng() * w)},${Math.floor(rng() * h)}`);
     return `M ${pts.join(' L ')} Z`;
 }
 function generateMasterpieceSketch(item, mode = 'music') {
     const seed = (item.title || 'Unknown') + (item.artist || item.releaseYear || '');
     const rng = seedRandom(seed);
     const paperType = rng() > 0.5 ? 'dot-paper' : 'graph-paper';
-    const paths = [ generateScribblePath(rng, 300, 450), generateScribblePath(rng, 300, 450) ];
+    const paths = [generateScribblePath(rng, 300, 450), generateScribblePath(rng, 300, 450)];
     const subText = mode === 'music' ? (item.artist || '') : (item.releaseYear || 'Cinema');
     return `<div class="sketch-canvas ${paperType}"><svg class="sketch-svg" viewBox="0 0 300 450"><path d="${paths[0]}" stroke-width="1.5" opacity="0.1" /><path d="${paths[1]}" stroke-width="1" opacity="0.05" /></svg><div class="sketch-hero-text">${item.title}</div><div class="sketch-sub-text">${subText}</div></div>`;
 }
+
+function generateMusicArt(item) { return generateMasterpieceSketch(item, 'music'); }
+function generateMovieSketch(item) { return generateMasterpieceSketch(item, 'movie'); }
+
+// ── O7: Category-based fallbacks, no Microlink ──────
+function generateCoursePoster(item) {
+    const cat = (item.category || 'default').toLowerCase();
+    const fallback = COURSE_FALLBACKS[cat] || COURSE_FALLBACKS['default'];
+
+    // YouTube thumbnail
+    let videoId = '';
+    if (item.url) {
+        if (item.url.includes('youtube.com/watch?v=')) videoId = item.url.split('v=')[1].split('&')[0];
+        else if (item.url.includes('youtu.be/')) videoId = item.url.split('/').pop();
+    }
+    if (videoId) {
+        return `<img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg" class="loaded course-poster" alt="YouTube" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='${fallback}'">`;
+    }
+
+    return `<img src="${fallback}" class="loaded course-poster" loading="lazy" alt="Course" style="width:100%;height:100%;object-fit:cover;">`;
+}
+
 /**
- * 'SKETCHY' THE MASCOT ENGINE
+ * MASCOT ENGINE — "Real Walking"
  */
 const sketchyQuotes = [
     "Searching for a masterpiece? 🖋️",
-    "Did you know? 'Dilwale Dulhania Le Jayenge' is the longest-running film! 🍿",
+    "Did you know? 'DDLJ' is the longest-running film! 🍿",
     "Listening to Bolly-beats today? 🎸",
-    "I've sketched 180,000 items so far... whew!",
+    "I've sketched 180,000 items so far!",
     "That Hero Card looks stunning, doesn't it?",
-    "Need a recommendation? Try searching 'Sci-Fi'!",
+    "Need a recommendation? Try 'Sci-Fi'!",
     "I'm feeling wobbly today! 🤖"
 ];
 
@@ -306,7 +425,6 @@ function initMascot() {
     const mascot = document.getElementById('sketchy-mascot');
     if (!mascot) return;
 
-    // Occasionally change quote
     setInterval(() => {
         if (!mascot.classList.contains('active')) {
             const text = document.getElementById('sketchy-text');
@@ -314,41 +432,33 @@ function initMascot() {
         }
     }, 10000);
 
-    // Initial sequence: Walk to logo
     setTimeout(() => moveMascotTo('at-logo'), 1000);
-    
-    // Recurring Patrol: Every 45 seconds, walk to a new navbar spot
+
     setInterval(() => {
         if (!mascot.classList.contains('active')) {
             const spots = ['at-logo', 'at-navbar', 'at-hero'];
-            const next = spots[Math.floor(Math.random() * spots.length)];
-            moveMascotTo(next);
+            moveMascotTo(spots[Math.floor(Math.random() * spots.length)]);
         }
     }, 45000);
 }
-
-const mascotAnims = ["Wave", "Jump", "ThumbsUp", "Yes", "Dance"];
 
 function moveMascotTo(state) {
     const mascot = document.getElementById('sketchy-mascot');
     const model = document.getElementById('sketchy-3d');
     if (!mascot || !model) return;
 
-    // Determine direction: if moving TO logo, face LEFT. Else face RIGHT.
-    if (state === 'at-logo') {
-        mascot.classList.add('facing-left');
-    } else {
-        mascot.classList.remove('facing-left');
-    }
+    if (state === 'at-logo') mascot.classList.add('facing-left');
+    else mascot.classList.remove('facing-left');
 
     model.setAttribute('animation-name', 'Walking');
+    mascot.classList.add('walking-bob');
 
     const states = ['at-navbar', 'at-hero', 'at-logo'];
     states.forEach(s => mascot.classList.remove(s));
     mascot.classList.add(state);
 
-    // Sync arrival
     const onArrival = () => {
+        mascot.classList.remove('walking-bob');
         model.setAttribute('animation-name', 'Wave');
         mascot.removeEventListener('transitionend', onArrival);
         setTimeout(() => {
@@ -360,42 +470,31 @@ function moveMascotTo(state) {
     mascot.addEventListener('transitionend', onArrival);
 }
 
-function triggerSketchy3D() {
+function triggerSketchy3D(customMessage = null, customAnim = null) {
     const mascot = document.getElementById('sketchy-mascot');
     const model = document.getElementById('sketchy-3d');
     const text = document.getElementById('sketchy-text');
     if (!mascot || !model || !text) return;
 
     mascot.classList.add('active');
-    
-    // Pick a random behavior
-    const behaviors = [
-        { anim: "Jump", text: "Boing! Searching... 🚀" },
-        { anim: "ThumbsUp", text: "Great choice! 👍" },
-        { anim: "Dance", text: "Let's celebrate this sketch! 🕺" }
-    ];
-    const behavior = behaviors[Math.floor(Math.random() * behaviors.length)];
-    
+
+    let behavior;
+    if (customMessage) {
+        behavior = { anim: customAnim || "Wave", text: customMessage };
+    } else {
+        const behaviors = [
+            { anim: "Jump", text: "Boing! Searching... 🚀" },
+            { anim: "ThumbsUp", text: "Great choice! 👍" },
+            { anim: "Dance", text: "Let's celebrate! 🕺" }
+        ];
+        behavior = behaviors[Math.floor(Math.random() * behaviors.length)];
+    }
+
     model.setAttribute('animation-name', behavior.anim);
-    text.textContent = behavior.text;
-    
-    // Walk to a new navbar spot after the animation
+    text.innerHTML = behavior.text;
+
     const locations = ['at-navbar', 'at-hero', 'at-logo'];
-    const nextLoc = locations[Math.floor(Math.random() * locations.length)];
-    setTimeout(() => moveMascotTo(nextLoc), 1500);
-    
-    setTimeout(() => {
-        mascot.classList.remove('active');
-    }, 4000);
+    setTimeout(() => moveMascotTo(locations[Math.floor(Math.random() * locations.length)]), 1500);
+
+    setTimeout(() => { mascot.classList.remove('active'); }, customMessage ? 6000 : 4000);
 }
-
-function generateMusicArt(item) { return generateMasterpieceSketch(item, 'music'); }
-function generateMovieSketch(item) { return generateMasterpieceSketch(item, 'movie'); }
-
-// Initialize mascot logic
-window.onload = (originalOnload => {
-    return () => {
-        if (originalOnload) originalOnload();
-        initMascot();
-    };
-})(window.onload);

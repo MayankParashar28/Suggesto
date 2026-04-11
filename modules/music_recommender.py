@@ -44,15 +44,28 @@ class MusicEngine:
             self.row_map[start:end] = r
 
         print(f"  ✅ Music Engine ready — {len(self.df):,} tracks.")
+        
+        # O4: Pre-compute fuzzy search pool
+        self._fuzzy_choices = (
+            self.df["name"].iloc[:3000].tolist() + 
+            self.df["artists_clean"].iloc[:500].unique().tolist()
+        )
 
-    def search(self, query: str, limit: int = 15) -> list[dict]:
-        """Vectorized search songs by name or artist."""
+    def search(self, query: str, limit: int = 15) -> tuple[list[dict], str | None]:
+        """Vectorized search songs by name or artist with fuzzy fallback."""
+        from modules.utils import get_fuzzy_suggestion
         q = query.lower().strip()
         mask = self.df["name_norm"].str.contains(q, na=False) | self.df["artist_norm"].str.contains(q, na=False)
         hits = self.df[mask].head(limit)
-        return [self._format_response(row.to_dict()) for _, row in hits.iterrows()]
+        results = [self._format_response(row.to_dict()) for _, row in hits.iterrows()]
+        
+        suggestion = None
+        if not results:
+            suggestion = get_fuzzy_suggestion(query, self._fuzzy_choices)
+            
+        return results, suggestion
 
-    def recommend(self, song_id: str, top_n: int = 12) -> list[dict]:
+    def recommend(self, song_id: str, top_n: int = 12, genre: str = None) -> list[dict]:
         """Generate acoustically similar track 'sketches' via O(1) lookup."""
         idx = self.id_to_idx.get(song_id)
         if idx is None: return []

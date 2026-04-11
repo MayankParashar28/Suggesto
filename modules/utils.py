@@ -30,3 +30,9 @@ def format_movie_response(row, score=None, mode="content"):
         "similarity": score,
         "mode": mode,
     }
+
+def get_fuzzy_suggestion(query: str, choices: list, threshold: float = 0.6) -> str | None:
+    """Find the best fuzzy match for a query among a list of choices."""
+    import difflib
+    matches = difflib.get_close_matches(query, choices, n=1, cutoff=threshold)
+    return matches[0] if matches else None

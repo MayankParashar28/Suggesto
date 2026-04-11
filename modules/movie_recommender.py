@@ -70,12 +70,21 @@ class MovieEngine:
 
     # ── Public API ──────────────────────────────────────────────────
 
-    def search(self, query: str, limit: int = 15) -> list[dict]:
-        """Vectorized search movies by title."""
+    def search(self, query: str, limit: int = 15) -> tuple[list[dict], str | None]:
+        """Vectorized search movies by title with fuzzy fallback."""
+        from modules.utils import get_fuzzy_suggestion
         q = query.lower().strip()
         mask = self.df["title_norm"].str.contains(q, na=False)
         hits = self.df[mask].head(limit)
-        return [self._format_with_ids(row.to_dict()) for _, row in hits.iterrows()]
+        results = [self._format_with_ids(row.to_dict()) for _, row in hits.iterrows()]
+        
+        suggestion = None
+        if not results:
+            # Only try fuzzy matching if direct search yields nothing
+            choices = self.df["title"].iloc[:5000].tolist() # Limit to top 5000 for performance
+            suggestion = get_fuzzy_suggestion(query, choices)
+            
+        return results, suggestion
 
     def recommend(self, movie_id: int, top_n: int = 12) -> list[dict]:
         """

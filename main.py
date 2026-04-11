@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from modules.movie_recommender import MovieEngine
 from modules.music_recommender import MusicEngine
+from modules.course_recommender import CourseEngine
 from modules.collab_recommender import CollabEngine
 from modules.hybrid_recommender import HybridEngine
 from modules.suggesto_registry import SuggestoRegistry
@@ -39,32 +40,37 @@ tmdb_service = TMDBService()
 
 def load_engines():
     import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    # O3: Only load CollabEngine if model exists
+    collab_model_path = os.path.join(MODEL_PATH, "collab_factors.npy")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         f_movie = executor.submit(MovieEngine, data_path=DATA_PATH, model_path=MODEL_PATH, mapping_service=mapping_service)
         f_music = executor.submit(MusicEngine, data_path=DATA_PATH, model_path=MODEL_PATH)
-        f_collab = executor.submit(CollabEngine, data_path=DATA_PATH, model_path=MODEL_PATH)
+        f_course = executor.submit(CourseEngine, data_path=DATA_PATH)
+        f_collab = executor.submit(CollabEngine, data_path=DATA_PATH, model_path=MODEL_PATH) if os.path.exists(collab_model_path) else None
         
-        return f_movie.result(), f_music.result(), f_collab.result()
+        return f_movie.result(), f_music.result(), f_course.result(), f_collab.result() if f_collab else CollabEngine()
 
-movie_engine, music_engine, collab_engine = load_engines()
+movie_engine, music_engine, course_engine, collab_engine = load_engines()
 hybrid_engine = HybridEngine(movie_engine, collab_engine)
 
 registry.register("movies", hybrid_engine)
 registry.register("songs", music_engine)
+registry.register("courses", course_engine)
 
-tmdb_service = TMDBService()
+# O1: Removed duplicate TMDBService instantiation (already created at line 39)
 
 # 2. Lifespan for Startup/Shutdown (Modern FastAPI Pattern)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🔥 Warming TMDB Cache...")
     try:
-         sample_movies = movie_engine.search("a", limit=24)
-         for movie in sample_movies:
+         # B5 FIX: search() returns (results, suggestion) tuple
+         results, _ = movie_engine.search("a", limit=24)
+         for movie in results:
              tid = movie.get("tmdbId")
              if tid and tid > 0:
                  await tmdb_service.get_movie_details(tid)
-         print(f"✅ Cache warmed with {len(sample_movies)} titles.")
+         print(f"✅ Cache warmed with {len(results)} titles.")
     except Exception as e:
          print(f"⚠️ Cache warmup skipped: {e}")
     yield
@@ -94,8 +100,8 @@ async def get_tmdb_movie(tmdb_id: int):
 
 @app.get("/api/v1/movies/search")
 async def search_movies(q: str = Query(..., min_length=2)):
-    """Search for movies with metadata enrichment."""
-    results = movie_engine.search(q, limit=12)
+    """Search for movies with metadata enrichment and fuzzy fallout."""
+    results, suggestion = movie_engine.search(q, limit=12)
     # Batch-fetch TMDB metadata for all results concurrently
     tmdb_ids = [r["tmdbId"] for r in results if r.get("tmdbId", -1) > 0]
     if tmdb_ids:
@@ -104,15 +110,23 @@ async def search_movies(q: str = Query(..., min_length=2)):
             tid = str(r.get("tmdbId"))
             if tid in batch_data:
                 r["cached"] = batch_data[tid]
-    return {"results": results}
+    return {"results": results, "suggestion": suggestion}
 
 @app.get("/api/v1/songs/search")
 async def search_songs(q: str = Query(..., min_length=2)):
     """Search for songs via the Zero-Scipy MusicEngine."""
     if music_engine is None:
-        return {"results": [], "status": "Music engine not available — model files missing."}
-    results = music_engine.search(q, limit=24)
-    return {"results": results}
+        return {"results": [], "suggestion": None, "status": "Music engine not available."}
+    results, suggestion = music_engine.search(q, limit=24)
+    return {"results": results, "suggestion": suggestion}
+
+@app.get("/api/v1/courses/search")
+async def search_courses(q: str = Query(..., min_length=2)):
+    """Search for courses via the CourseEngine."""
+    if course_engine is None:
+        return {"results": [], "suggestion": None}
+    results, suggestion = course_engine.search(q, limit=24)
+    return {"results": results, "suggestion": suggestion}
 
 @app.get("/api/v1/movies/recommend/{movie_id}")
 async def recommend_movies(

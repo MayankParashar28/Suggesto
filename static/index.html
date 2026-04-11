@@ -4,24 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Suggesto: The Cinema Sketchbook 🎬</title>
+    <meta name="description" content="Suggesto is a hand-drawn discovery hub for movies, songs, and courses. Find your next masterpiece.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>">
     
     <!-- External Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- O9: Pinned Lucide version -->
+    <script src="https://unpkg.com/lucide@0.263.1"></script>
+    <!-- O8: model-viewer kept but with loading="lazy" and low-power for perf -->
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
     
     <!-- Hand-Drawn Styles -->
-    <link rel="stylesheet" href="/static/css/style.css?v=2">
-    <link rel="stylesheet" href="/static/css/mascot.css?v=1">
+    <link rel="stylesheet" href="/static/css/style.css?v=8">
+    <link rel="stylesheet" href="/static/css/mascot.css?v=8">
 </head>
 <body>
 
     <nav aria-label="Main Navigation">
         <div class="logo" role="button" onclick="location.reload()" aria-label="Suggesto Logo">Suggesto: Sketchbook</div>
         
-        <!-- 'Sketchy' The Mascot (True 3D Edition - Now on Navbar) -->
+        <!-- 'Sketchy' The Mascot -->
         <div id="sketchy-mascot" class="mascot-container">
             <div class="sketchy-bubble" id="sketchy-text">Searching for a masterpiece? 🖋️</div>
             <model-viewer
@@ -32,7 +36,7 @@
                 power-preference="low-power"
                 auto-rotate
                 rotation-speed="0.5"
-                shadow-intensity="1"
+                shadow-intensity="0"
                 environment-image="neutral"
                 exposure="1"
                 autoplay
@@ -50,30 +54,31 @@
                 <input type="text" id="query-input" placeholder="Sketch a movie title..." autocomplete="off">
             </div>
         </div>
+        <!-- B3: Paper clip element added -->
         <div class="nav-links">
-            <button class="nav-link active" onclick="switchTab('movies', this)">Cinema Log</button>
-    <button class="nav-link" onclick="switchTab('songs', this)">Playlist Scribbles</button>
+            <div id="nav-paper-clip" class="paper-clip"></div>
+            <a href="#/movies" class="nav-link active" data-route="movies">Cinema Log</a>
+            <a href="#/songs" class="nav-link" data-route="songs">Playlist Scribbles</a>
+            <a href="#/courses" class="nav-link" data-route="courses">Learning Scribbles</a>
         </div>
     </nav>
 
     <main id="main-content">
-        <!-- Spotlight / Billboard (Billboard Sketch) -->
+        <!-- Spotlight -->
         <section id="spotlight-section" class="spotlight-section">
             <div id="spotlight-container"></div>
         </section>
 
-        <!-- Genre / Quick-Pills Bar -->
+        <!-- Genre Pills -->
         <section class="pill-bar-container">
-            <div id="genre-pills" class="genre-pills">
-                <!-- Pills populated dynamically -->
-            </div>
+            <div id="genre-pills" class="genre-pills"></div>
         </section>
 
-        <!-- Detail View (The Post-it) -->
+        <!-- Detail View -->
         <section id="detail-view" class="detail-view" aria-labelledby="det-title">
             <div class="detail-flex">
                 <div class="detail-img" id="det-img-container">
-                    <img src="" alt="Movie Poster">
+                    <img src="" alt="Poster">
                 </div>
                 <article class="detail-content">
                     <p class="detail-tagline" id="det-tagline"></p>
@@ -93,19 +98,14 @@
         <div id="content-sections">
             <div class="content-row">
                 <h2 class="grid-header" id="grid-header">Trending Sketches</h2>
-                <!-- Content Grid -->
                 <section id="grid-container" aria-live="polite">
-                    <div class="discovery-grid" id="discovery-results">
-                        <!-- Cards appear here dynamically -->
-                    </div>
+                    <div class="discovery-grid" id="discovery-results"></div>
                 </section>
             </div>
         </div>
     </main>
 
-
-
     <!-- Application Logic -->
-    <script src="/static/js/app.js?v=2"></script>
+    <script src="/static/js/app.js?v=8"></script>
 </body>
 </html>
