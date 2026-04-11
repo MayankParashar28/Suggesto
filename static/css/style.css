@@ -262,15 +262,29 @@ main {
     top: -10px;
     right: -10px;
     background: var(--post-it-yellow);
-    padding: 4px 12px;
+    padding: 6px 14px;
     font-family: var(--font-header);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 700;
     border: 2px solid var(--foreground);
     transform: rotate(5deg);
     box-shadow: 2px 2px 0px var(--foreground);
     z-index: 5;
+    text-transform: capitalize;
 }
+
+.label-udemy {
+    background: #ec5252 !important;
+    color: white !important;
+}
+
+.label-youtube {
+    background: #ff0000 !important;
+    color: white !important;
+}
+
+.label-web-dev { background: #5a32a8 !important; color: white !important; }
+.label-design { background: #ff9800 !important; color: white !important; }
 
 .card-title {
     font-size: 1.3rem;

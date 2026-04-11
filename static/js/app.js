@@ -339,7 +339,7 @@ function renderItems(items) {
                     (item.tmdbId > 0 ? `<img src="" id="img-${item.tmdbId}" class="skeleton" loading="lazy">` : generateMovieSketch(item))));
 
         card.innerHTML = `
-            <div class="match-label">${isMusic ? 'Draft' : (isCourse ? 'Lesson' : 'Picked')}</div>
+            <div class="match-label label-${(item.album || 'Course').toLowerCase().replace(' ', '-')}">${isCourse ? (item.album || 'Course') : (isMusic ? 'Draft' : 'Picked')}</div>
             <div class="card-img">${imageHtml}</div>
             <div class="card-title">${item.title}</div>
             <div class="card-meta-line">
@@ -474,17 +474,24 @@ function generateCoursePoster(item) {
     const cat = (item.category || 'default').toLowerCase();
     const fallback = COURSE_FALLBACKS[cat] || COURSE_FALLBACKS['default'];
 
-    // YouTube thumbnail
+    // 1. YouTube High-Res Thumbnail
     let videoId = '';
     if (item.url) {
         if (item.url.includes('youtube.com/watch?v=')) videoId = item.url.split('v=')[1].split('&')[0];
         else if (item.url.includes('youtu.be/')) videoId = item.url.split('/').pop();
     }
     if (videoId) {
-        return `<img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg" class="loaded course-poster" alt="YouTube" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='${fallback}'">`;
+        return `<img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" class="loaded course-poster" alt="YouTube" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg'">`;
     }
 
-    return `<img src="${fallback}" class="loaded course-poster" loading="lazy" alt="Course" style="width:100%;height:100%;object-fit:cover;">`;
+    // 2. Predictive Udemy CDN Pattern (Limited but real where it works)
+    const udemyImg = `https://img-c.udemycdn.com/course/480x270/${item.movieId}.jpg`;
+    
+    // 3. Smart Fallback: Use title-based keyword if specific category is too broad
+    const keywords = (item.title.split(' ').slice(0, 3).join(',') + ',' + cat).toLowerCase();
+    const smartFallback = `https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=512&q=80&q=${encodeURIComponent(keywords)}`;
+
+    return `<img src="${udemyImg}" class="loaded course-poster" loading="lazy" alt="Course" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='${fallback}'">`;
 }
 
 /**
