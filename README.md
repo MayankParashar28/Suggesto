@@ -1,22 +1,21 @@
-# 🖋️ Inkpick: The Universal Discovery Hub
+#  Inkpick: The Universal Discovery Hub
 
 Inkpick is a hand-drawn, high-performance discovery engine for **Movies**, **Music**, and **Learning**. Designed with a "Sketchbook" aesthetic, it prioritizes tactility and speed, delivering precision recommendations across hundreds of thousands of items without the bloat of modern frameworks.
 
-![Inkpick Hub Preview](https://via.placeholder.com/1200x600?text=Inkpick+Discovery+Hub+--+Hand-Drawn+Aesthetics)
 
 ---
 
-## ✨ Key Features
+##  Key Features
 
-- **🌌 Universal Hub:** A unified discovery stream blending Cinema, Music, and academic Courses into one seamless experience.
-- **🔍 Precision Filtering:** Metadata-level genre filtering (e.g., Bollywood, Sci-Fi, Web Dev) powered by optimized NumPy masking.
-- **🎨 Sketchbook Aesthetic:** A custom-built UI featuring hand-drawn strokes, paper textures, and tactile micro-animations.
-- **🤖 Sketchy (3D Mascot):** An interactive 3D robot companion that reacts to your discovery journey using `<model-viewer>`.
-- **❤️ My Sketchbook:** A personal persistence system to "heart" and save your favorite masterpieces for future reference.
+- ** Universal Hub:** A unified discovery stream blending Cinema, Music, and academic Courses into one seamless experience.
+- ** Precision Filtering:** Metadata-level genre filtering (e.g., Bollywood, Sci-Fi, Web Dev) powered by optimized NumPy masking.
+- ** Sketchbook Aesthetic:** A custom-built UI featuring hand-drawn strokes, paper textures, and tactile micro-animations.
+- ** Sketchy (3D Mascot):** An interactive 3D robot companion that reacts to your discovery journey using `<model-viewer>`.
+- ** My Sketchbook:** A personal persistence system to "heart" and save your favorite masterpieces for future reference.
 
 ---
 
-## 🛠️ The Tech Stack
+##  The Tech Stack
 
 ### Backend (The "Masterpiece" Engine)
 - **FastAPI:** High-performance Python web framework for the discovery API.
@@ -30,7 +29,7 @@ Inkpick is a hand-drawn, high-performance discovery engine for **Movies**, **Mus
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### Prerequisites
 - Python 3.10+
@@ -63,7 +62,7 @@ Suggesto is production-ready and includes a `Procfile` for one-click deployment 
 
 ---
 
-## 📜 Design Philosophy
+##  Design Philosophy
 Inkpick rejects the sterile, flat design of modern web apps. It embraces the "Sketchbook" philosophy: digital discovery should feel like browsing through a curated notebook of hand-drawn scribbles. Every card, hover, and interaction is designed to feel human, tactile, and alive.
 
 ---
