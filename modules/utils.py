@@ -1,5 +1,15 @@
 import ast
 import pandas as pd
+import re
+
+def sanitize_query(q: str) -> str:
+    """Strip non-alphanumeric characters except spaces, hyphens, and single quotes."""
+    if not q:
+        return ""
+    # Remove everything except letters, numbers, spaces, hyphens, and single quotes
+    clean = re.sub(r"[^a-zA-Z0-9 \-\']", "", q)
+    # Collapse multiple spaces
+    return re.sub(r"\s+", " ", clean).strip()
 
 def parse_list_field(val):
     """Safely parse stringified Python lists from CSV back to real lists."""

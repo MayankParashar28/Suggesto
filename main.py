@@ -1,7 +1,7 @@
 import os
 import json
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query, Depends, Header, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from contextlib import asynccontextmanager
@@ -15,6 +15,7 @@ from modules.course_recommender import CourseEngine
 from modules.collab_recommender import CollabEngine
 from modules.hybrid_recommender import HybridEngine
 from modules.inkpick_registry import InkpickRegistry
+from modules.utils import parse_list_field, format_movie_response, sanitize_query
 from services.tmdb import TMDBService
 from services.mapping import MappingService
 
@@ -38,42 +39,69 @@ MODEL_PATH = "models/"
 mapping_service = MappingService(data_path=DATA_PATH)
 tmdb_service = TMDBService()
 
-def load_engines():
+def load_engines(data_path: str, model_path: str):
     import concurrent.futures
     # O3: Only load CollabEngine if model exists
-    collab_model_path = os.path.join(MODEL_PATH, "collab_factors.npy")
+    collab_model_path = os.path.join(model_path, "collab_factors.npy")
+    mapping_service = MappingService(data_path=data_path)
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        f_movie = executor.submit(MovieEngine, data_path=DATA_PATH, model_path=MODEL_PATH, mapping_service=mapping_service)
-        f_music = executor.submit(MusicEngine, data_path=DATA_PATH, model_path=MODEL_PATH)
-        f_course = executor.submit(CourseEngine, data_path=DATA_PATH)
-        f_collab = executor.submit(CollabEngine, data_path=DATA_PATH, model_path=MODEL_PATH) if os.path.exists(collab_model_path) else None
+        f_movie = executor.submit(MovieEngine, data_path=data_path, model_path=model_path, mapping_service=mapping_service)
+        f_music = executor.submit(MusicEngine, data_path=data_path, model_path=model_path)
+        f_course = executor.submit(CourseEngine, data_path=data_path)
+        f_collab = executor.submit(CollabEngine, data_path=data_path, model_path=model_path) if os.path.exists(collab_model_path) else None
         
-        return f_movie.result(), f_music.result(), f_course.result(), f_collab.result() if f_collab else CollabEngine()
-
-movie_engine, music_engine, course_engine, collab_engine = load_engines()
-hybrid_engine = HybridEngine(movie_engine, collab_engine)
-
-registry.register("movies", hybrid_engine)
-registry.register("songs", music_engine)
-registry.register("courses", course_engine)
-
-# O1: Removed duplicate TMDBService instantiation (already created at line 39)
+        movie = f_movie.result()
+        music = f_music.result()
+        course = f_course.result()
+        collab = f_collab.result() if f_collab else CollabEngine(data_path=data_path, model_path=model_path)
+        
+        return movie, music, course, collab
 
 # 2. Lifespan for Startup/Shutdown (Modern FastAPI Pattern)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 Initializing Inkpick Engines (Lifespan Mode)...")
+    DATA_PATH = "processed/"
+    MODEL_PATH = "models/"
+    
+    # Load engines in parallel without blocking main loop
+    movie, music, course, collab = load_engines(DATA_PATH, MODEL_PATH)
+    hybrid = HybridEngine(movie, collab)
+    
+    # Store in app state
+    app.state.movie_engine = movie
+    app.state.music_engine = music
+    app.state.course_engine = course
+    # Store in app state
+    app.state.movie_engine = movie
+    app.state.music_engine = music
+    app.state.course_engine = course
+    app.state.collab_engine = collab
+    app.state.hybrid_engine = hybrid
+    
+    # Register in global registry
+    registry.register("movies", hybrid)
+    registry.register("songs", music)
+    registry.register("courses", course)
+    
+    # Verify Configuration
+    if not tmdb_service.api_key:
+         print("  ⚠️  CRITICAL: TMDB_API_KEY is missing! Discovery metadata will be limited to stubs.")
+    
     print("🔥 Warming TMDB Cache...")
     try:
          # B5 FIX: search() returns (results, suggestion) tuple
-         results, _ = movie_engine.search("a", limit=24)
-         for movie in results:
-             tid = movie.get("tmdbId")
+         results, _ = movie.search("a", limit=24)
+         for m in results:
+             tid = m.get("tmdbId")
              if tid and tid > 0:
                  await tmdb_service.get_movie_details(tid)
          print(f"✅ Cache warmed with {len(results)} titles.")
     except Exception as e:
          print(f"⚠️ Cache warmup skipped: {e}")
     yield
+
 
 # 3. App Instance
 app = FastAPI(
@@ -100,8 +128,13 @@ async def get_tmdb_movie(tmdb_id: int):
 
 @app.get("/api/v1/movies/search")
 async def search_movies(q: str = Query(..., min_length=2)):
-    """Search for movies with metadata enrichment and fuzzy fallout."""
-    results, suggestion = movie_engine.search(q, limit=12)
+    """Search for movies via the Zero-Numpy MovieEngine."""
+    q = sanitize_query(q)
+    if len(q) < 2:
+        return {"results": [], "suggestion": None}
+
+    movie_engine = app.state.movie_engine
+    results, suggestion = movie_engine.search(q, limit=24)
     # Batch-fetch TMDB metadata for all results concurrently
     tmdb_ids = [r["tmdbId"] for r in results if r.get("tmdbId", -1) > 0]
     if tmdb_ids:
@@ -115,6 +148,11 @@ async def search_movies(q: str = Query(..., min_length=2)):
 @app.get("/api/v1/songs/search")
 async def search_songs(q: str = Query(..., min_length=2)):
     """Search for songs via the Zero-Scipy MusicEngine."""
+    q = sanitize_query(q)
+    if len(q) < 2:
+        return {"results": [], "suggestion": None, "status": "Search query too short after cleaning."}
+
+    music_engine = app.state.music_engine
     if music_engine is None:
         return {"results": [], "suggestion": None, "status": "Music engine not available."}
     results, suggestion = music_engine.search(q, limit=24)
@@ -123,6 +161,11 @@ async def search_songs(q: str = Query(..., min_length=2)):
 @app.get("/api/v1/courses/search")
 async def search_courses(q: str = Query(..., min_length=2)):
     """Search for courses via the CourseEngine."""
+    q = sanitize_query(q)
+    if len(q) < 2:
+        return {"results": [], "suggestion": None}
+
+    course_engine = app.state.course_engine
     if course_engine is None:
         return {"results": [], "suggestion": None}
     results, suggestion = course_engine.search(q, limit=24)
@@ -135,6 +178,10 @@ async def recommend_movies(
     genre: Optional[str] = None
 ):
     """Generate recommendations for a specific movieId."""
+    movie_engine = app.state.movie_engine
+    collab_engine = app.state.collab_engine
+    hybrid_engine = app.state.hybrid_engine
+
     if mode == "hybrid":
         recs = hybrid_engine.recommend(movie_id, top_n=12, genre=genre)
     elif mode == "collaborative":
@@ -144,7 +191,7 @@ async def recommend_movies(
     
     # Fallback cascade logic
     if not recs:
-        recs = movie_engine.recommend(movie_id, top_n=12)
+        recs = app.state.movie_engine.recommend(movie_id, top_n=12)
         
     if not recs:
          raise HTTPException(status_code=404, detail="No recommendations found.")
@@ -171,9 +218,6 @@ async def universal_recommend(
     if not engine:
         raise HTTPException(status_code=404, detail=f"Category '{content_type}' is not active.")
     
-    if engine is None: # Placeholder case
-        return {"recommendations": [], "status": "coming_soon"}
-
     # Normalize item_id type (movies expect int, songs expect str)
     try:
         if content_type == "movies":
@@ -224,7 +268,16 @@ async def batch_tmdb(payload: dict):
     return {"results": results}
 
 @app.post("/api/v1/metadata/cache", include_in_schema=False)
-async def update_metadata_cache(payload: CacheUpdate):
+async def update_metadata_cache(
+    payload: CacheUpdate, 
+    request: Request,
+    x_internal_secret: Optional[str] = Header(None)
+):
+    """Internal endpoint to update metadata cache. Protected by secret token."""
+    secret = os.getenv("INTERNAL_SECRET_TOKEN")
+    if not secret or x_internal_secret != secret:
+        raise HTTPException(status_code=403, detail="Unauthorized internal request.")
+        
     tmdb_service.update_cache(payload.tmdbId, payload.data)
     return {"status": "Cached"}
 
