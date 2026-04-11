@@ -12,6 +12,7 @@ class TMDBService:
         self.cache_file = cache_file
         self.dirty = False
         self.cache = self._load_cache()
+        self.timeout = httpx.Timeout(4.0, connect=2.0) # Strict timeout for stability
 
     def _load_cache(self) -> Dict[str, Any]:
         if os.path.exists(self.cache_file):
@@ -42,7 +43,7 @@ class TMDBService:
         if str(tmdb_id) in self.cache:
             return self.cache[str(tmdb_id)]
 
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.get(
                     f"{self.base_url}/movie/{tmdb_id}",
@@ -101,7 +102,7 @@ class TMDBService:
                 except Exception:
                     return str(tid), None
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             tasks = [fetch_one(client, tid) for tid in to_fetch]
             fetched = await asyncio.gather(*tasks)
             

@@ -89,15 +89,18 @@ async def lifespan(app: FastAPI):
     if not tmdb_service.api_key:
          print("  ⚠️  CRITICAL: TMDB_API_KEY is missing! Discovery metadata will be limited to stubs.")
     
-    print("🔥 Warming TMDB Cache...")
+    # Optimized Warmup for Vercel (Cold Start Prevention)
+    is_vercel = os.getenv("VERCEL") == "1"
+    warmup_count = 6 if is_vercel else 12
+    
+    print(f"🔥 Warming TMDB Cache ({warmup_count} titles)...")
     try:
-         # B5 FIX: search() returns (results, suggestion) tuple
-         results, _ = movie.search("a", limit=24)
+         results, _ = movie.search("a", limit=warmup_count)
          for m in results:
              tid = m.get("tmdbId")
              if tid and tid > 0:
                  await tmdb_service.get_movie_details(tid)
-         print(f"✅ Cache warmed with {len(results)} titles.")
+         print(f"✅ Cache warmed successfully.")
     except Exception as e:
          print(f"⚠️ Cache warmup skipped: {e}")
     yield

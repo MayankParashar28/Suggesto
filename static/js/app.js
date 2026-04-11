@@ -36,6 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if (typeof lucide !== 'undefined') lucide.createIcons();
         initRouter();
         initMascot();
+        initShortcuts();
         console.log("✅ Inkpick Hub initialized.");
     } catch (err) {
         console.error("❌ Init error:", err);
@@ -104,28 +105,51 @@ function movePaperClip(el) {
 }
 
 // ── O6: Cache pruning ────────────────────────────────
-function pruneCache() {
-    const keys = Object.keys(cache);
-    if (keys.length > CACHE_MAX) {
-        // Remove oldest half
-        keys.slice(0, Math.floor(CACHE_MAX / 2)).forEach(k => delete cache[k]);
     }
 }
+
+function initShortcuts() {
+    window.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            if (input) input.focus();
+        }
+    });
+}
+
+function showSkeletons(count = 8) {
+    let html = '';
+    for (let i = 0; i < count; i++) {
+        html += `<div class="card skeleton" style="height:350px; border-radius:15px;"></div>`;
+    }
+    grid.innerHTML = html;
+}
+
 
 /**
  * FETCH LOGIC
  */
-async function fetchDiscovery() {
-    console.log("🎨 Hand-drawing discovery...");
-    grid.innerHTML = '<div style="padding:40px; text-align:center; opacity:0.5; font-family:var(--font-header);">🖋️ Sketching items for you...</div>';
+async function fetchDiscovery(append = false) {
+    const loadMoreWrap = document.getElementById('load-more-wrap');
+    if (!append) {
+        console.log("🎨 Hand-drawing discovery...");
+        showSkeletons(12);
+        if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+    }
+
     try {
-        const res = await fetch(`/api/v1/discover/${currentTab}?limit=24`);
+        const limit = 24;
+        const res = await fetch(`/api/v1/discover/${currentTab}?limit=${limit}`);
         if (!res.ok) throw new Error("Server was having trouble sketching...");
         const data = await res.json();
         const items = data.results || [];
 
-        if (items.length === 0) {
-            grid.innerHTML = '<div style="padding:40px; text-align:center; font-family:var(--font-header);">✍️ No sketches found in this wing.</div>';
+        if (!append && items.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <h3>✍️ No sketches found in this wing.</h3>
+                    <p>Try switching categories or check back later!</p>
+                </div>`;
             return;
         }
 
@@ -137,8 +161,16 @@ async function fetchDiscovery() {
             pruneCache();
         }
 
-        renderSpotlight(items[0]);
-        renderItems(items.slice(1));
+        if (!append) {
+            grid.innerHTML = '';
+            renderSpotlight(items[0]);
+            renderItems(items.slice(1));
+        } else {
+            renderItems(items);
+        }
+
+        // Show "Load More" if we got a full page
+        if (loadMoreWrap) loadMoreWrap.style.display = items.length >= limit ? 'flex' : 'none';
 
         if (currentTab === 'movies') {
             const uncached = items.filter(i => i.tmdbId > 0 && !cache[i.tmdbId]).map(i => i.tmdbId);
@@ -146,9 +178,13 @@ async function fetchDiscovery() {
         }
     } catch (err) {
         console.error("Discovery error:", err);
-        grid.innerHTML = `<div style="padding:40px; text-align:center; color:var(--accent); font-family:var(--font-header);">⚠️ Pencil broke: ${err.message}</div>`;
+        grid.innerHTML = `<div class="empty-state" style="color:var(--accent);">⚠️ Pencil broke: ${err.message}</div>`;
     }
 }
+
+// Bind Load More
+document.getElementById('btn-load-more')?.addEventListener('click', () => fetchDiscovery(true));
+
 
 async function handleSearch(q) {
     if (q.length < 2) return;
@@ -303,6 +339,9 @@ async function selectItem(item) {
     } else {
         let meta = cache[item.tmdbId];
         if (!meta && item.tmdbId > 0) {
+            // Show placeholder while fetching
+            imgContainer.classList.add('skeleton');
+            document.getElementById('det-desc').textContent = "Inkpick is sketching the details...";
             const res = await fetch(`/api/v1/tmdb/movie/${item.tmdbId}`);
             meta = await res.json();
             cache[item.tmdbId] = meta;
