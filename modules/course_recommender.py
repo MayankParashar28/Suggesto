@@ -36,8 +36,8 @@ class CourseEngine:
         
             # O4: Pre-compute fuzzy search pool
             self._fuzzy_choices = (
-                self.df["title"].iloc[:3000].tolist() + 
-                self.df["instructor"].iloc[:500].unique().tolist()
+                self.df["title"].tolist() + 
+                self.df["instructor"].unique().tolist()
             )
         else:
             print(f"  ❌ No course metadata found.")
@@ -53,9 +53,9 @@ class CourseEngine:
         if self.df.empty: return [], None
         q = query.lower().strip()
         mask = (
-            self.df["title_norm"].str.contains(q, na=False) | 
-            self.df["instructor_norm"].str.contains(q, na=False) |
-            self.df["platform_norm"].str.contains(q, na=False)
+            self.df["title_norm"].str.contains(q, na=False, regex=False) | 
+            self.df["instructor_norm"].str.contains(q, na=False, regex=False) |
+            self.df["platform_norm"].str.contains(q, na=False, regex=False)
         )
         hits = self.df[mask].head(limit)
         results = [self._format_response(row.to_dict()) for _, row in hits.iterrows()]
@@ -98,11 +98,12 @@ class CourseEngine:
         
         return [self._format_response(row.to_dict()) for _, row in results.iterrows()]
 
-    def discover(self, limit: int = 24) -> list[dict]:
-        """Random selection of courses."""
+    def discover(self, limit: int = 24, offset: int = 0) -> list[dict]:
+        """Return a selection of courses with pagination support."""
         if self.df.empty: return []
-        sample_indices = np.random.choice(len(self.df), min(len(self.df), limit), replace=False)
-        rows = self.df.iloc[sample_indices]
+        start = offset
+        end = offset + limit
+        rows = self.df.iloc[start:end]
         return [self._format_response(row.to_dict()) for _, row in rows.iterrows()]
 
     def _format_response(self, course: dict) -> dict:

@@ -65,6 +65,6 @@ class HybridEngine:
         """Delegate search to content engine."""
         return self.content.search(query, limit)
 
-    def discover(self, limit: int = 24) -> list[dict]:
-        """Delegate discovery to content engine."""
-        return self.content.discover(limit)
+    def discover(self, limit: int = 24, offset: int = 0) -> list[dict]:
+        """Delegate discovery to content engine with pagination."""
+        return self.content.discover(limit, offset)

@@ -18,6 +18,9 @@ from modules.inkpick_registry import InkpickRegistry
 from modules.utils import parse_list_field, format_movie_response, sanitize_query
 from services.tmdb import TMDBService
 from services.mapping import MappingService
+from services.cinema_service import CinemaService
+from services.audio_service import AudioService
+from services.edu_service import EduService
 
 # ── Load environment variables ──────────────────────────────────
 load_dotenv()
@@ -39,24 +42,15 @@ MODEL_PATH = "models/"
 mapping_service = MappingService(data_path=DATA_PATH)
 tmdb_service = TMDBService()
 
-def load_engines(data_path: str, model_path: str):
+def load_services(data_path: str, model_path: str):
+    """Load and initialize domain services in parallel."""
     import concurrent.futures
-    # O3: Only load CollabEngine if model exists
-    collab_model_path = os.path.join(model_path, "collab_factors.npy")
-    mapping_service = MappingService(data_path=data_path)
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        f_movie = executor.submit(MovieEngine, data_path=data_path, model_path=model_path, mapping_service=mapping_service)
-        f_music = executor.submit(MusicEngine, data_path=data_path, model_path=model_path)
-        f_course = executor.submit(CourseEngine, data_path=data_path)
-        f_collab = executor.submit(CollabEngine, data_path=data_path, model_path=model_path) if os.path.exists(collab_model_path) else None
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        f_cinema = executor.submit(CinemaService, data_path=data_path, model_path=model_path)
+        f_audio = executor.submit(AudioService, data_path=data_path, model_path=model_path)
+        f_edu = executor.submit(EduService, data_path=data_path)
         
-        movie = f_movie.result()
-        music = f_music.result()
-        course = f_course.result()
-        collab = f_collab.result() if f_collab else CollabEngine(data_path=data_path, model_path=model_path)
-        
-        return movie, music, course, collab
+        return f_cinema.result(), f_audio.result(), f_edu.result()
 
 # 2. Lifespan for Startup/Shutdown (Modern FastAPI Pattern)
 @asynccontextmanager
@@ -65,21 +59,18 @@ async def lifespan(app: FastAPI):
     DATA_PATH = "processed/"
     MODEL_PATH = "models/"
     
-    # Load engines in parallel without blocking main loop
-    movie, music, course, collab = load_engines(DATA_PATH, MODEL_PATH)
-    hybrid = HybridEngine(movie, collab)
+    # Load services in parallel
+    cinema, audio, edu = load_services(DATA_PATH, MODEL_PATH)
     
     # Store in app state
-    app.state.movie_engine = movie
-    app.state.music_engine = music
-    app.state.course_engine = course
-    app.state.collab_engine = collab
-    app.state.hybrid_engine = hybrid
+    app.state.cinema_service = cinema
+    app.state.audio_service = audio
+    app.state.edu_service = edu
     
-    # Register in global registry
-    registry.register("movies", hybrid)
-    registry.register("songs", music)
-    registry.register("courses", course)
+    # Register in global registry for unified routing
+    registry.register("movies", cinema)
+    registry.register("songs", audio)
+    registry.register("courses", edu)
     
     # Verify Configuration
     if not tmdb_service.api_key:
@@ -91,7 +82,7 @@ async def lifespan(app: FastAPI):
     
     print(f"🔥 Warming TMDB Cache ({warmup_count} titles)...")
     try:
-         results, _ = movie.search("a", limit=warmup_count)
+         results, _ = cinema.search("a", limit=warmup_count)
          for m in results:
              tid = m.get("tmdbId")
              if tid and tid > 0:
@@ -125,50 +116,45 @@ async def get_tmdb_movie(tmdb_id: int):
     """Proxy request to TMDB to hide API key and cache metadata."""
     return await tmdb_service.get_movie_details(tmdb_id)
 
-@app.get("/api/v1/movies/search")
-async def search_movies(q: str = Query(..., min_length=2)):
-    """Search for movies via the Zero-Numpy MovieEngine."""
+@app.get("/api/v1/search/{domain}")
+async def universal_search(domain: str, q: str = Query(..., min_length=2), limit: int = 24):
+    """Unified search endpoint as specified in README."""
+    engine = registry.get_engine(domain)
+    if not engine:
+        raise HTTPException(status_code=404, detail=f"Category '{domain}' is not active.")
+    
     q = sanitize_query(q)
     if len(q) < 2:
         return {"results": [], "suggestion": None}
 
-    movie_engine = app.state.movie_engine
-    results, suggestion = movie_engine.search(q, limit=24)
-    # Batch-fetch TMDB metadata for all results concurrently
-    tmdb_ids = [r["tmdbId"] for r in results if r.get("tmdbId", -1) > 0]
-    if tmdb_ids:
-        batch_data = await tmdb_service.batch_get_movie_details(tmdb_ids)
-        for r in results:
-            tid = str(r.get("tmdbId"))
-            if tid in batch_data:
-                r["cached"] = batch_data[tid]
+    results, suggestion = engine.search(q, limit=limit)
+    
+    # Enrichment for movies
+    if domain == "movies":
+        tmdb_ids = [r["tmdbId"] for r in results if r.get("tmdbId", -1) > 0]
+        if tmdb_ids:
+            batch_data = await tmdb_service.batch_get_movie_details(tmdb_ids)
+            for r in results:
+                tid = str(r.get("tmdbId"))
+                if tid in batch_data:
+                    r["cached"] = batch_data[tid]
+    
     return {"results": results, "suggestion": suggestion}
+
+@app.get("/api/v1/movies/search")
+async def search_movies(q: str = Query(..., min_length=2)):
+    """Legacy endpoint — redirects to universal search."""
+    return await universal_search("movies", q)
 
 @app.get("/api/v1/songs/search")
 async def search_songs(q: str = Query(..., min_length=2)):
-    """Search for songs via the Zero-Scipy MusicEngine."""
-    q = sanitize_query(q)
-    if len(q) < 2:
-        return {"results": [], "suggestion": None, "status": "Search query too short after cleaning."}
-
-    music_engine = app.state.music_engine
-    if music_engine is None:
-        return {"results": [], "suggestion": None, "status": "Music engine not available."}
-    results, suggestion = music_engine.search(q, limit=24)
-    return {"results": results, "suggestion": suggestion}
+    """Legacy endpoint — redirects to universal search."""
+    return await universal_search("songs", q)
 
 @app.get("/api/v1/courses/search")
 async def search_courses(q: str = Query(..., min_length=2)):
-    """Search for courses via the CourseEngine."""
-    q = sanitize_query(q)
-    if len(q) < 2:
-        return {"results": [], "suggestion": None}
-
-    course_engine = app.state.course_engine
-    if course_engine is None:
-        return {"results": [], "suggestion": None}
-    results, suggestion = course_engine.search(q, limit=24)
-    return {"results": results, "suggestion": suggestion}
+    """Legacy endpoint — redirects to universal search."""
+    return await universal_search("courses", q)
 
 @app.get("/api/v1/movies/recommend/{movie_id}")
 async def recommend_movies(
@@ -177,21 +163,15 @@ async def recommend_movies(
     genre: Optional[str] = None
 ):
     """Generate recommendations for a specific movieId."""
-    movie_engine = app.state.movie_engine
-    collab_engine = app.state.collab_engine
-    hybrid_engine = app.state.hybrid_engine
+    cinema = app.state.cinema_service
 
     if mode == "hybrid":
-        recs = hybrid_engine.recommend(movie_id, top_n=12, genre=genre)
+        recs = cinema.recommend(movie_id, top_n=12, mode="hybrid", genre=genre)
     elif mode == "collaborative":
-        recs = collab_engine.recommend(movie_id, top_n=12)
+        recs = cinema.recommend(movie_id, top_n=12, mode="collaborative")
     else:
-        recs = movie_engine.recommend(movie_id, top_n=12)
+        recs = cinema.recommend(movie_id, top_n=12, mode="content")
     
-    # Fallback cascade logic
-    if not recs:
-        recs = app.state.movie_engine.recommend(movie_id, top_n=12)
-        
     if not recs:
          raise HTTPException(status_code=404, detail="No recommendations found.")
 
@@ -237,13 +217,13 @@ async def universal_recommend(
     return {"recommendations": enriched, "category": content_type}
 
 @app.get("/api/v1/discover/{content_type}")
-async def discover_content(content_type: str, limit: int = 24):
+async def discover_content(content_type: str, limit: int = 24, offset: int = 0):
     """Serve a random selection of content for the home page."""
     engine = registry.get_engine(content_type)
     if not engine:
          raise HTTPException(status_code=404, detail=f"Category '{content_type}' is not active.")
     
-    results = engine.discover(limit=limit)
+    results = engine.discover(limit=limit, offset=offset)
     
     # Enrichment for movies
     if content_type == "movies":

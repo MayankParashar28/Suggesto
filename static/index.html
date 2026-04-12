@@ -13,8 +13,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
     <!-- O9: Pinned Lucide version -->
     <script src="https://unpkg.com/lucide@0.263.1"></script>
-    <!-- O8: model-viewer kept but with loading="lazy" and low-power for perf -->
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+    <!-- O8: model-viewer script for 3D mascot -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     
     <!-- Hand-Drawn Styles -->
     <link rel="stylesheet" href="/static/css/style.css?v=8">
@@ -27,24 +27,21 @@
         
         <!-- 'Sketchy' The Mascot -->
         <div id="sketchy-mascot" class="mascot-container">
-            <div class="sketchy-bubble" id="sketchy-text">Searching for a masterpiece? 🖋️</div>
-            <model-viewer
-                id="sketchy-3d"
+            <div class="sketchy-bubble-wrap">
+                <div class="sketchy-bubble" id="sketchy-text">Searching for a masterpiece? 🖋️</div>
+            </div>
+            
+            <model-viewer id="sketchy-3d" 
                 src="https://modelviewer.dev/shared-assets/models/RobotExpressive.glb"
-                alt="A cute 3D Robot Mascot"
-                loading="lazy"
-                power-preference="low-power"
-                auto-rotate
-                rotation-speed="0.5"
-                shadow-intensity="0"
-                environment-image="neutral"
-                exposure="1"
-                autoplay
-                animation-name="Dance"
+                alt="Expressive 3D Mascot"
+                auto-rotate 
+                rotation-per-second="30deg"
                 interaction-prompt="none"
-                camera-controls
-                disable-zoom
-                onclick="triggerSketchy3D()">
+                shadow-intensity="1" 
+                camera-controls 
+                touch-action="pan-y"
+                autoplay
+                animation-name="Dance">
             </model-viewer>
         </div>
 
@@ -57,7 +54,7 @@
         <!-- B3: Paper clip element added -->
         <div class="nav-links">
             <div id="nav-paper-clip" class="paper-clip"></div>
-            <a href="#/movies" class="nav-link active" data-route="movies">Cinema Log</a>
+            <a href="#/movies" class="nav-link" data-route="movies">Cinema Log</a>
             <a href="#/songs" class="nav-link" data-route="songs">Playlist Scribbles</a>
             <a href="#/courses" class="nav-link" data-route="courses">Learning Scribbles</a>
         </div>
@@ -110,6 +107,6 @@
     </main>
 
     <!-- Application Logic -->
-    <script src="/static/js/app.js?v=8"></script>
+    <script src="/static/js/app.js?v=hub_fix_10"></script>
 </body>
 </html>

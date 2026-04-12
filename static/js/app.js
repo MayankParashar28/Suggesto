@@ -8,6 +8,8 @@ let currentGenre = 'All';
 const TMDB_POSTER = 'https://image.tmdb.org/t/p/w500';
 const cache = {};
 const CACHE_MAX = 500; // O6: Memory cap
+let discoveryOffset = 0;
+const DISCOVERY_LIMIT = 24;
 
 // ── Elements (Resolved in init) ──────────────────────
 let grid, input, detailView, genrePills, spotlightContainer;
@@ -42,6 +44,17 @@ window.addEventListener('DOMContentLoaded', () => {
     console.log("🎨 Inkpick Hub: DOM Content Loaded. Initializing...");
     try {
         resolveElements();
+        if (input) {
+            console.log("🖋️ hub: Input listener attached successfully.");
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const query = input.value.trim();
+                    console.log("🔍 hub: Running handleSearch for", query);
+                    handleSearch(query);
+                }
+            });
+        }
         if (typeof lucide !== 'undefined') lucide.createIcons();
         initRouter();
         initMascot();
@@ -65,10 +78,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 </div>`;
         }
     }
-});
-
-input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleSearch(input.value.trim());
 });
 
 window.addEventListener('hashchange', initRouter);
@@ -105,6 +114,7 @@ function internalSwitchTab(tab, el) {
     }
 
     if (detailView) detailView.style.display = 'none';
+    discoveryOffset = 0; // Reset offset on tab switch
     renderPills();
     fetchDiscovery();
 
@@ -173,13 +183,16 @@ async function fetchDiscovery(append = false) {
     const loadMoreWrap = document.getElementById('load-more-wrap');
     if (!append) {
         console.log("🎨 Hand-drawing discovery...");
+        discoveryOffset = 0;
         showSkeletons(12);
         if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+    } else {
+        discoveryOffset += DISCOVERY_LIMIT;
     }
 
     try {
-        const limit = 24;
-        const res = await fetch(`/api/v1/discover/${currentTab}?limit=${limit}`);
+        const limit = DISCOVERY_LIMIT;
+        const res = await fetch(`/api/v1/discover/${currentTab}?limit=${limit}&offset=${discoveryOffset}`);
         if (!res.ok) throw new Error("Server was having trouble sketching...");
         const data = await res.json();
         const items = data.results || [];
@@ -202,11 +215,12 @@ async function fetchDiscovery(append = false) {
         }
 
         if (!append) {
+            triggerSketchy3D();
             grid.innerHTML = '';
-            renderSpotlight(items[0]);
-            renderItems(items.slice(1));
+            if (items.length > 0) renderSpotlight(items[0]);
+            renderItems(items.slice(1), false);
         } else {
-            renderItems(items);
+            renderItems(items, true);
         }
 
         // Show "Load More" if we got a full page
@@ -228,15 +242,19 @@ document.getElementById('btn-load-more')?.addEventListener('click', () => fetchD
 
 async function handleSearch(q) {
     if (q.length < 2) return;
+    triggerSketchy3D("Pencil at the ready... 🖋️", "Walking");
+    console.log("🔍 hub: Searching for", q, "in", currentTab);
     try {
-        const res = await fetch(`/api/v1/${currentTab}/search?q=${encodeURIComponent(q)}&limit=24`);
+        const res = await fetch(`/api/v1/search/${currentTab}?q=${encodeURIComponent(q)}&limit=24`);
+        if (!res.ok) throw new Error("Search API failed");
         const data = await res.json();
         const items = data.results || data;
+        console.log("📦 hub: Search results received", items.length);
 
         renderItems(items);
 
         if (items.length === 0 && data.suggestion) {
-            triggerSketchy3D(`Did you mean <span style="text-decoration:underline; cursor:pointer; color:var(--secondary);" onclick="applySuggestion('${data.suggestion.replace(/'/g, "\\'")}')">${data.suggestion}</span>?`, "Jump");
+            triggerSketchy3D(`Did you mean <span style="text-decoration:underline; cursor:pointer; color:var(--secondary);" onclick="applySuggestion('${data.suggestion.replace(/'/g, "\\'")}')">${data.suggestion}</span>?`, "Wave");
         } else if (currentTab === 'movies') {
             const uncached = items.filter(i => i.tmdbId > 0 && !cache[i.tmdbId]).map(i => i.tmdbId);
             if (uncached.length > 0) batchFetchMeta(uncached);
@@ -249,6 +267,7 @@ async function handleSearch(q) {
 function applySuggestion(text) {
     if (input) {
         input.value = text;
+        triggerSketchy3D("Excellent choice!", "Jump");
         handleSearch(text);
     }
 }
@@ -312,9 +331,10 @@ function renderSpotlight(item) {
     `;
 }
 
-function renderItems(items) {
+function renderItems(items, append = false) {
     if (!grid) return;
-    grid.innerHTML = '';
+    console.log("🎨 hub: Rendering", items.length, "items into grid. Append:", append);
+    if (!append) grid.innerHTML = '';
     if (featuredItems.size > 200) featuredItems.clear();
 
     items.forEach((item, i) => {
@@ -336,7 +356,7 @@ function renderItems(items) {
         let imageHtml = isCourse ? generateCoursePoster(item) :
             (isMusic ? generateMusicArt(item) :
                 (meta && meta.poster_path ? `<img src="${TMDB_POSTER}${meta.poster_path}" class="loaded" loading="lazy" decoding="async">` :
-                    (item.tmdbId > 0 ? `<img src="" id="img-${item.tmdbId}" class="skeleton" loading="lazy">` : generateMovieSketch(item))));
+                    (item.tmdbId > 0 ? `<div id="img-${item.tmdbId}" class="skeleton-sketch">${generateMovieSketch(item)}</div>` : generateMovieSketch(item))));
 
         card.innerHTML = `
             <div class="match-label label-${(item.album || 'Course').toLowerCase().replace(' ', '-')}">${isCourse ? (item.album || 'Course') : (isMusic ? 'Draft' : 'Picked')}</div>
@@ -347,6 +367,7 @@ function renderItems(items) {
                 ${item.rating ? `<span class="rating">⭐ ${item.rating}</span>` : (item.vote_average ? `<span class="rating">⭐ ${item.vote_average.toFixed(1)}</span>` : '')}
             </div>
         `;
+        if (append) card.style.animationDelay = `${(i + discoveryOffset) * 0.05}s`;
         grid.appendChild(card);
     });
 }
@@ -437,10 +458,10 @@ async function batchFetchMeta(tmdbIds) {
 }
 
 function updateCard(tid, cardEl, data) {
-    const img = cardEl.querySelector(`#img-${tid}`);
-    if (img && data.poster_path) {
-        img.src = TMDB_POSTER + data.poster_path;
-        img.onload = () => { img.classList.remove('skeleton'); img.classList.add('loaded'); };
+    const container = cardEl.querySelector(`#img-${tid}`);
+    if (container && data.poster_path) {
+        container.innerHTML = `<img src="${TMDB_POSTER}${data.poster_path}" class="loaded" loading="lazy">`;
+        container.classList.remove('skeleton-sketch');
     }
 }
 
@@ -495,7 +516,7 @@ function generateCoursePoster(item) {
 }
 
 /**
- * MASCOT ENGINE — "Real Walking"
+ * MASCOT ENGINE — 3D Robot Restoration
  */
 const sketchyQuotes = [
     "Searching for a masterpiece? 🖋️",

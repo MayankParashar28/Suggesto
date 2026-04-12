@@ -12,6 +12,7 @@ Optimization:
 import os
 import csv
 import pickle
+import re
 import numpy as np
 from sys import intern
 from modules.utils import parse_list_field, format_movie_response
@@ -68,21 +69,31 @@ class MovieEngine:
 
         print(f"  ✅ Content Engine ready — {len(self.df):,} movies (Pandas Vectorized).")
 
+        # ── 4. Pre-calculate Fuzzy search pool (O4) ────────────────
+        # Clean titles (remove year) for the fuzzy matching keys, 
+        # but map them back to original titles for the suggestion.
+        self._fuzzy_map = {
+            re.sub(r"\s+\(\d{4}\)$", "", str(title)): title 
+            for title in self.df["title"].iloc[:40000] # Top 40k for performance vs accuracy
+        }
+        self._fuzzy_choices = list(self._fuzzy_map.keys())
+
     # ── Public API ──────────────────────────────────────────────────
 
     def search(self, query: str, limit: int = 15) -> tuple[list[dict], str | None]:
         """Vectorized search movies by title with fuzzy fallback."""
         from modules.utils import get_fuzzy_suggestion
         q = query.lower().strip()
-        mask = self.df["title_norm"].str.contains(q, na=False)
+        mask = self.df["title_norm"].str.contains(q, na=False, regex=False)
         hits = self.df[mask].head(limit)
         results = [self._format_with_ids(row.to_dict()) for _, row in hits.iterrows()]
         
         suggestion = None
         if not results:
             # Only try fuzzy matching if direct search yields nothing
-            choices = self.df["title"].iloc[:5000].tolist() # Limit to top 5000 for performance
-            suggestion = get_fuzzy_suggestion(query, choices)
+            match = get_fuzzy_suggestion(query, self._fuzzy_choices, threshold=0.5)
+            if match:
+                suggestion = self._fuzzy_map.get(match)
             
         return results, suggestion
 
@@ -151,9 +162,12 @@ class MovieEngine:
              mode=mode
         )
 
-    def discover(self, limit: int = 24) -> list[dict]:
-        """Return a random selection of movies from the verified pool."""
-        sample_indices = np.random.choice(self.discover_pool, min(len(self.discover_pool), limit), replace=False)
+    def discover(self, limit: int = 24, offset: int = 0) -> list[dict]:
+        """Return a deterministic selection of movies for pagination support."""
+        start = offset
+        end = offset + limit
+        # Slice from the discover pool (already sorted by popularity)
+        sample_indices = self.discover_pool[start:end]
         rows = self.df.iloc[sample_indices]
         return [self._format_with_ids(row.to_dict()) for _, row in rows.iterrows()]
 

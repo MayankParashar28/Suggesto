@@ -6,8 +6,8 @@ def sanitize_query(q: str) -> str:
     """Strip non-alphanumeric characters except spaces, hyphens, and single quotes."""
     if not q:
         return ""
-    # Remove everything except letters, numbers, spaces, hyphens, and single quotes
-    clean = re.sub(r"[^a-zA-Z0-9 \-\']", "", q)
+    # Remove everything except letters, numbers, spaces, hyphens, single quotes, and parentheses
+    clean = re.sub(r"[^a-zA-Z0-9 \-\'\(\)]", "", q)
     # Collapse multiple spaces
     return re.sub(r"\s+", " ", clean).strip()
 

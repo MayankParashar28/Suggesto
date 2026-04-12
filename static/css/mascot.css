@@ -22,12 +22,18 @@
     filter: none;
 }
 
-/* Speech Bubble */
-.sketchy-bubble {
+/* Speech Bubble Container (Viewport Safety) */
+.sketchy-bubble-wrap {
     position: absolute;
     bottom: 110%;
     right: 0;
-    width: 180px;
+    width: auto;
+    pointer-events: none;
+    z-index: 1001;
+}
+
+.sketchy-bubble {
+    width: 200px;
     padding: 12px;
     background: var(--post-it-yellow);
     border: 3px solid var(--foreground);
@@ -39,8 +45,9 @@
     transform: scale(0) rotate(15deg);
     transform-origin: bottom right;
     transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
-    box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.1);
+    box-shadow: 6px 6px 0px rgba(0,0,0,0.1);
     opacity: 0;
+    pointer-events: auto;
 }
 
 .sketchy-bubble::after {
@@ -94,10 +101,23 @@
     top: auto;
 }
 
-.mascot-container.at-navbar {
-    left: calc(100% - 100px);
-    bottom: -15px;
-    top: auto;
+/* Ensure bubble stays on screen when mascot is at logo */
+.mascot-container.at-logo .sketchy-bubble-wrap {
+    left: 0;
+    right: auto;
+}
+
+.mascot-container.at-logo .sketchy-bubble {
+    transform-origin: bottom left;
+}
+
+.mascot-container.at-logo .sketchy-bubble::after {
+    left: 20px;
+    right: auto;
+}
+
+.mascot-container.at-logo.active .sketchy-bubble {
+    transform: scale(1) rotate(2deg);
 }
 
 .mascot-container.at-hero {

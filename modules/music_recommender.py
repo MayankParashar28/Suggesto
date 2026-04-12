@@ -47,15 +47,15 @@ class MusicEngine:
         
         # O4: Pre-compute fuzzy search pool
         self._fuzzy_choices = (
-            self.df["name"].iloc[:3000].tolist() + 
-            self.df["artists_clean"].iloc[:500].unique().tolist()
+            self.df["name"].iloc[:40000].tolist() + 
+            self.df["artists_clean"].iloc[:5000].unique().tolist()
         )
 
     def search(self, query: str, limit: int = 15) -> tuple[list[dict], str | None]:
         """Vectorized search songs by name or artist with fuzzy fallback."""
         from modules.utils import get_fuzzy_suggestion
         q = query.lower().strip()
-        mask = self.df["name_norm"].str.contains(q, na=False) | self.df["artist_norm"].str.contains(q, na=False)
+        mask = self.df["name_norm"].str.contains(q, na=False, regex=False) | self.df["artist_norm"].str.contains(q, na=False, regex=False)
         hits = self.df[mask].head(limit)
         results = [self._format_response(row.to_dict()) for _, row in hits.iterrows()]
         
@@ -95,10 +95,11 @@ class MusicEngine:
 
         return [self._format_response(self.df.iloc[i].to_dict(), scores[i]) for i in top_indices]
 
-    def discover(self, limit: int = 24) -> list[dict]:
-        """Return a random selection of songs via Numpy sampling."""
-        sample_indices = np.random.choice(len(self.df), min(len(self.df), limit), replace=False)
-        rows = self.df.iloc[sample_indices]
+    def discover(self, limit: int = 24, offset: int = 0) -> list[dict]:
+        """Return a selection of songs with pagination support."""
+        start = offset
+        end = offset + limit
+        rows = self.df.iloc[start:end]
         return [self._format_response(row.to_dict()) for _, row in rows.iterrows()]
 
     def _format_response(self, song, score=0.0):
